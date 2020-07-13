@@ -1,0 +1,21 @@
+# exporter port
+port: 8080
+# configuration file name
+config: config
+# The prefix of the metrics
+prefix: aci_
+
+# Profiles for different fabrics
+profile:
+  profile-fabric-01:
+    # Apic username
+    username: foo
+    # Apic password
+    password: bar
+
+# Http client settings used to access apic
+httpclient:
+  insecurehttps: true
+  keepalive: 10
+  timeout: 3
+  tlshandshaketimeout: 10
