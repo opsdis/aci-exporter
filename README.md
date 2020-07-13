@@ -8,6 +8,7 @@ The aci-exporter provide metrics from an Cisco ACI fabric by using api calls to
 an ACPI controller(s).
 
 Most metrics are based on the health scoring provided by ACI. This includes:
+
 - Node health of spine and leafs 
 - Fabric health
 - Tenant health
@@ -27,10 +28,10 @@ A profile include the information need specific to one or many ACI fabrics, like
 # Installation
 
 ## Build 
-    go build -o aci-exporter  *.go
+    go build -o build/aci-exporter  *.go
 
 ## Run
-    ./aci-exporter 
+    .build/aci-exporter 
     
 ## Test
     curl -s 'http://localhost:8080/probe?target=https://apichost&profile=profile-fabric-01'
