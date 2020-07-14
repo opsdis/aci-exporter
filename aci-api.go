@@ -22,10 +22,7 @@ import (
 	"strconv"
 )
 
-/*
- For mor information about health scoring in ACI please see:
- https://www.cisco.com/c/en/us/td/docs/switches/datacenter/aci/apic/sw/1-x/Operating_ACI/guide/b_Cisco_Operating_ACI/b_Cisco_Operating_ACI_chapter_01010.pdf
-*/
+
 var re_health = regexp.MustCompile("topology/pod-(.*?)/health")
 
 //var re_podId = regexp.MustCompile("pod-(.*?)")
@@ -34,10 +31,6 @@ func newAciAPI(apichostname string, username string, password string) *aciAPI {
 
 	ip := &aciAPI{
 		connection: *newAciConnction(apichostname, username, password),
-
-		//batchFetch:    viper.GetBool("monitor.batchfetch"),
-		//batchFilter:   viper.GetString("monitor.batchfilter"),
-		//batchInterval: viper.GetInt("monitor.batchinterval"),
 		metricPrefix: viper.GetString("prefix"),
 	}
 
@@ -211,45 +204,45 @@ func (p aciAPI) faults() []Metric {
 
 	metrics := []Metric{}
 	//result := gjson.Get(data, "imdata")
-/*
-	metric_name := "faults"
-	crit := gjson.Get(result.Raw, "0.faultCountsWithDetails.attributes.crit")
-	metric := Metric{}
-	metric.Name = metric_name
-	metric.Labels = make(map[string]string)
-	metric.Labels["severity"] = "crit"
-	metric.Value = p.toFloat(crit.Str)
+	/*
+		metric_name := "faults"
+		crit := gjson.Get(result.Raw, "0.faultCountsWithDetails.attributes.crit")
+		metric := Metric{}
+		metric.Name = metric_name
+		metric.Labels = make(map[string]string)
+		metric.Labels["severity"] = "crit"
+		metric.Value = p.toFloat(crit.Str)
 
-	metric.Description = MetricDesc{
-		Help: fmt.Sprintf("%s Returns the total number of faults", metric.Name),
-		Type: fmt.Sprintf("%s gauge", metric.Name),
-	}
-	metrics = append(metrics, metric)
+		metric.Description = MetricDesc{
+			Help: fmt.Sprintf("%s Returns the total number of faults", metric.Name),
+			Type: fmt.Sprintf("%s gauge", metric.Name),
+		}
+		metrics = append(metrics, metric)
 
-	maj := gjson.Get(result.Raw, "0.faultCountsWithDetails.attributes.maj")
-	metric = Metric{}
-	metric.Name = metric_name
-	metric.Labels = make(map[string]string)
-	metric.Labels["severity"] = "maj"
-	metric.Value = p.toFloat(maj.Str)
-	metrics = append(metrics, metric)
+		maj := gjson.Get(result.Raw, "0.faultCountsWithDetails.attributes.maj")
+		metric = Metric{}
+		metric.Name = metric_name
+		metric.Labels = make(map[string]string)
+		metric.Labels["severity"] = "maj"
+		metric.Value = p.toFloat(maj.Str)
+		metrics = append(metrics, metric)
 
-	minor := gjson.Get(result.String(), "0.faultCountsWithDetails.attributes.minor")
-	metric = Metric{}
-	metric.Name = metric_name
-	metric.Labels = make(map[string]string)
-	metric.Labels["severity"] = "minor"
-	metric.Value = p.toFloat(minor.Str)
-	metrics = append(metrics, metric)
+		minor := gjson.Get(result.String(), "0.faultCountsWithDetails.attributes.minor")
+		metric = Metric{}
+		metric.Name = metric_name
+		metric.Labels = make(map[string]string)
+		metric.Labels["severity"] = "minor"
+		metric.Value = p.toFloat(minor.Str)
+		metrics = append(metrics, metric)
 
-	warn := gjson.Get(result.String(), "0.faultCountsWithDetails.attributes.warn")
-	metric = Metric{}
-	metric.Name = metric_name
-	metric.Labels = make(map[string]string)
-	metric.Labels["severity"] = "warn"
-	metric.Value = p.toFloat(warn.Str)
-	metrics = append(metrics, metric)
-*/
+		warn := gjson.Get(result.String(), "0.faultCountsWithDetails.attributes.warn")
+		metric = Metric{}
+		metric.Name = metric_name
+		metric.Labels = make(map[string]string)
+		metric.Labels["severity"] = "warn"
+		metric.Value = p.toFloat(warn.Str)
+		metrics = append(metrics, metric)
+	*/
 	children := gjson.Get(data, "imdata.0.faultCountsWithDetails.children.#.faultTypeCounts")
 
 	setDesc := true
