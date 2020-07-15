@@ -129,14 +129,6 @@ func main() {
 		[]string{"url", "status"},
 	)
 
-	/*
-		provider, err := internal.Factory(viper.GetString("provider"))
-		if err != nil {
-			log.Println(err)
-			os.Exit(1)
-		}
-		var init = initHandler{provider}
-	*/
 	// Setup handler for backend provider mertics
 	http.Handle("/probe", logcall(promMonitor(http.HandlerFunc(getMonitorMetrics), responseTime, "/probe")))
 	http.Handle("/alive", logcall(promMonitor(http.HandlerFunc(alive), responseTime, "/alive")))
