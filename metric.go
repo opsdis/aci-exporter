@@ -18,6 +18,7 @@ import (
 	"sort"
 )
 
+/*
 // Metric is a Promethues structure of the data
 type Metric struct {
 	Name        string
@@ -29,6 +30,26 @@ type Metric struct {
 }
 
 // MetricDesc the Promethues help and type text
+type MetricDesc struct {
+	Help string
+	Type string
+}
+*/
+
+type  MetricDefinition struct {
+	Name string // the name of the metrics
+	Metrics []Metric
+	Description MetricDesc
+}
+
+// Metric the value, labels and timestamp of the metrics
+type Metric struct {
+	Value       float64
+	Labels      map[string]string
+	Timestamp   float64
+}
+
+// MetricDesc the Prometheus help and type text
 type MetricDesc struct {
 	Help string
 	Type string
@@ -60,15 +81,20 @@ func (m Metric) Labels2Prometheus(commonLabels map[string]string) string {
 }
 
 // Metrics2Prometheus convert a slice of Metric to Prometheus text output
-func Metrics2Prometheus(metrics []Metric, prefix string, commonLabels map[string]string) string {
+func Metrics2Prometheus(metrics []MetricDefinition, prefix string, commonLabels map[string]string) string {
 	promFormat := ""
 
-	for _, metric := range metrics {
-		if metric.Description.Help != "" && metric.Description.Type != "" {
-			promFormat = promFormat + fmt.Sprintf("# HELP %s\n", metric.Description.Help)
-			promFormat = promFormat + fmt.Sprintf("# TYPE %s\n", metric.Description.Type)
+	for _, metricDefinition := range metrics {
+
+		// only format if the metrics slice include items
+		if len(metricDefinition.Metrics) > 0 {
+			promFormat = promFormat + fmt.Sprintf("# HELP %s\n", metricDefinition.Description.Help)
+			promFormat = promFormat + fmt.Sprintf("# TYPE %s\n", metricDefinition.Description.Type)
+
+			for _, metric := range metricDefinition.Metrics {
+				promFormat = promFormat + fmt.Sprintf("%s%s{%s} %g\n", prefix, metricDefinition.Name, metric.Labels2Prometheus(commonLabels), metric.Value)
+			}
 		}
-		promFormat = promFormat + fmt.Sprintf("%s%s{%s} %g\n", prefix, metric.Name, metric.Labels2Prometheus(commonLabels), metric.Value)
 	}
 
 	return promFormat
