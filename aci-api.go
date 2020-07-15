@@ -20,8 +20,8 @@ import (
 	"github.com/tidwall/gjson"
 	"regexp"
 	"strconv"
+	"time"
 )
-
 
 var re_health = regexp.MustCompile("topology/pod-(.*?)/health")
 
@@ -29,12 +29,12 @@ var re_health = regexp.MustCompile("topology/pod-(.*?)/health")
 
 func newAciAPI(apichostname string, username string, password string) *aciAPI {
 
-	ip := &aciAPI{
-		connection: *newAciConnction(apichostname, username, password),
+	api := &aciAPI{
+		connection:   *newAciConnction(apichostname, username, password),
 		metricPrefix: viper.GetString("prefix"),
 	}
 
-	return ip
+	return api
 }
 
 type aciAPI struct {
@@ -48,6 +48,7 @@ type aciAPI struct {
 // CollectMetrics Gather all aci metrics and return name of the aci fabric, slice of metrics and status of
 // successful login
 func (p aciAPI) CollectMetrics() (string, []MetricDefinition, bool) {
+	start := time.Now()
 
 	status := p.connection.login()
 	defer p.connection.logout()
@@ -57,8 +58,8 @@ func (p aciAPI) CollectMetrics() (string, []MetricDefinition, bool) {
 	}
 
 	fabricName := p.getFabricName()
+
 	// Hold all metrics created during the session
-	//metrics := []Metric{}
 	metrics := []MetricDefinition{}
 
 	metrics = append(metrics, p.fabricHealth()...)
@@ -69,9 +70,28 @@ func (p aciAPI) CollectMetrics() (string, []MetricDefinition, bool) {
 
 	// Todo EPG health
 
+	metrics = append(metrics, *p.scrape(time.Since(start).Seconds()))
+
 	return fabricName, metrics, true
 }
 
+func (p aciAPI) scrape(seconds float64) *MetricDefinition {
+	metricDefinition := MetricDefinition{}
+	metricDefinition.Name = "scrape_duration_seconds"
+	metricDefinition.Description = MetricDesc{
+		Help: fmt.Sprintf("%s The duration, in seconds, of the last scrape of the fabric", metricDefinition.Name),
+		Type: fmt.Sprintf("%s gauge", metricDefinition.Name),
+	}
+	metricDefinition.Metrics = []Metric{}
+
+	metric := Metric{}
+	metric.Labels = make(map[string]string)
+	metric.Value = seconds
+
+	metricDefinition.Metrics = append(metricDefinition.Metrics, metric)
+
+	return &metricDefinition
+}
 
 func (p aciAPI) fabricHealth() []MetricDefinition {
 	data, err := p.connection.getByQuery("fabric_health")
@@ -148,8 +168,6 @@ func (p aciAPI) nodeHealth() *MetricDefinition {
 
 		if role != "controller" {
 
-			//metric.Name = "node_health_ratio"
-
 			metric.Labels = make(map[string]string)
 			metric.Labels["podid"] = gjson.Get(value.String(), "topSystem.attributes.podId").Str
 			metric.Labels["state"] = gjson.Get(value.String(), "topSystem.attributes.state").Str
@@ -169,7 +187,6 @@ func (p aciAPI) nodeHealth() *MetricDefinition {
 
 	return &metricDefinition
 }
-
 
 func (p aciAPI) tenantHealth() *MetricDefinition {
 	data, err := p.connection.getByQuery("tenant_health")
@@ -206,7 +223,6 @@ func (p aciAPI) tenantHealth() *MetricDefinition {
 	metricDefinition.Metrics = metrics
 	return &metricDefinition
 }
-
 
 func (p aciAPI) faults() []MetricDefinition {
 	data, err := p.connection.getByQuery("faults")
@@ -357,7 +373,6 @@ func (p aciAPI) getFabricName() string {
 	}
 
 	return gjson.Get(data, "imdata.0.infraCont.attributes.fbDmNm").Str
-
 }
 
 func (p aciAPI) toRatio(value string) float64 {
