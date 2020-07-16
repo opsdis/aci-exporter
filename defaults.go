@@ -51,6 +51,10 @@ func SetDefaultValues() {
 	viper.SetDefault("prefix", "aci_")
 	viper.BindEnv("prefix")
 
+	// If set to true response will always be in openmetrics format
+	viper.SetDefault("openmetrics", false)
+	viper.BindEnv("openmetrics")
+
 	// HTTPCLient
 	viper.SetDefault("HTTPClient.timeout", 3)
 	viper.BindEnv("HTTPClient.timeout")

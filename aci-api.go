@@ -14,7 +14,6 @@
 package main
 
 import (
-	"fmt"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"github.com/tidwall/gjson"
@@ -77,10 +76,11 @@ func (p aciAPI) CollectMetrics() (string, []MetricDefinition, bool) {
 
 func (p aciAPI) scrape(seconds float64) *MetricDefinition {
 	metricDefinition := MetricDefinition{}
-	metricDefinition.Name = "scrape_duration_seconds"
+	metricDefinition.Name = "scrape_duration"
 	metricDefinition.Description = MetricDesc{
-		Help: fmt.Sprintf("%s The duration, in seconds, of the last scrape of the fabric", metricDefinition.Name),
-		Type: fmt.Sprintf("%s gauge", metricDefinition.Name),
+		Help: "The duration, in seconds, of the last scrape of the fabric",
+		Type: "gauge",
+		Unit: "seconds",
 	}
 	metricDefinition.Metrics = []Metric{}
 
@@ -101,18 +101,20 @@ func (p aciAPI) fabricHealth() []MetricDefinition {
 	}
 
 	metricDefinitionOverall := MetricDefinition{}
-	metricDefinitionOverall.Name = "fabric_health_overall_ratio"
+	metricDefinitionOverall.Name = "fabric_health_overall"
 	metricDefinitionOverall.Description = MetricDesc{
-		Help: fmt.Sprintf("%s Returns the health score of the overall fabric", metricDefinitionOverall.Name),
-		Type: fmt.Sprintf("%s gauge", metricDefinitionOverall.Name),
+		Help: "Returns the health score of the overall fabric",
+		Type: "gauge",
+		Unit: "ratio",
 	}
 	metricDefinitionOverall.Metrics = []Metric{}
 
 	metricDefinitionPod := MetricDefinition{}
-	metricDefinitionPod.Name = "pod_health_ratio"
+	metricDefinitionPod.Name = "pod_health"
 	metricDefinitionPod.Description = MetricDesc{
-		Help: fmt.Sprintf("%s Returns the health score of a pod", metricDefinitionPod.Name),
-		Type: fmt.Sprintf("%s gauge", metricDefinitionPod.Name),
+		Help: "Returns the health score of a pod",
+		Type: "gauge",
+		Unit: "ratio",
 	}
 	metricDefinitionPod.Metrics = []Metric{}
 
@@ -152,11 +154,12 @@ func (p aciAPI) nodeHealth() *MetricDefinition {
 	}
 
 	metricDefinition := MetricDefinition{}
-	metricDefinition.Name = "node_health_ratio"
+	metricDefinition.Name = "node_health"
 
 	metricDefinition.Description = MetricDesc{
-		Help: fmt.Sprintf("%s Returns the health score of a fabric node", metricDefinition.Name),
-		Type: fmt.Sprintf("%s gauge", metricDefinition.Name),
+		Help: "Returns the health score of a fabric node",
+		Type: "gauge",
+		Unit: "ratio",
 	}
 
 	metrics := []Metric{}
@@ -196,10 +199,11 @@ func (p aciAPI) tenantHealth() *MetricDefinition {
 	}
 
 	metricDefinition := MetricDefinition{}
-	metricDefinition.Name = "tenant_health_ratio"
+	metricDefinition.Name = "tenant_health"
 	metricDefinition.Description = MetricDesc{
-		Help: fmt.Sprintf("%s Returns the health score of a tenant", metricDefinition.Name),
-		Type: fmt.Sprintf("%s gauge", metricDefinition.Name),
+		Help: "Returns the health score of a tenant",
+		Type: "gauge",
+		Unit: "ratio",
 	}
 
 	metrics := []Metric{}
@@ -234,8 +238,9 @@ func (p aciAPI) faults() []MetricDefinition {
 	metricDefinitionFaults := MetricDefinition{}
 	metricDefinitionFaults.Name = "faults"
 	metricDefinitionFaults.Description = MetricDesc{
-		Help: fmt.Sprintf("%s Returns the total number of faults by type", metricDefinitionFaults.Name),
-		Type: fmt.Sprintf("%s gauge", metricDefinitionFaults.Name),
+		Help: "Returns the total number of faults by type",
+		Type: "gauge",
+		Unit: "",
 	}
 
 	metrics := []Metric{}
@@ -280,8 +285,9 @@ func (p aciAPI) faults() []MetricDefinition {
 	metricDefinitionAcked := MetricDefinition{}
 	metricDefinitionAcked.Name = "faults_acked"
 	metricDefinitionAcked.Description = MetricDesc{
-		Help: fmt.Sprintf("%s Returns the total number of acknowledged faults by type", metricDefinitionAcked.Name),
-		Type: fmt.Sprintf("%s gauge", metricDefinitionAcked.Name),
+		Help: "Returns the total number of acknowledged faults by type",
+		Type: "gauge",
+		Unit: "",
 	}
 
 	children.ForEach(func(key, value gjson.Result) bool {
@@ -330,11 +336,12 @@ func (p aciAPI) infraNodeInfo() *MetricDefinition {
 	}
 
 	metricDefinition := MetricDefinition{}
-	metricDefinition.Name = "infra_node_info"
+	metricDefinition.Name = "infra_node"
 
 	metricDefinition.Description = MetricDesc{
-		Help: fmt.Sprintf("%s Returns the info of the infrastructure apic node", metricDefinition.Name),
-		Type: fmt.Sprintf("%s counter", metricDefinition.Name),
+		Help: "Returns the info of the infrastructure apic node",
+		Type: "counter",
+		Unit: "info",
 	}
 
 	metrics := []Metric{}

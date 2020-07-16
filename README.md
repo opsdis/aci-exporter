@@ -24,6 +24,14 @@ fault like operational and configuration.
 All attributes in the configuration has default values, except for the profile section.
 A profile include the information need specific to one or many ACI fabrics, like authentication.
 
+# Openmetrics format
+The exporter support openmetrics format. This is done by adding the following
+accept header to the request:
+
+    "Accept: application/openmetrics-text"
+
+The configuration property `openmetrics` set to `true` will result in that all
+reguest will have an openmetrics response.
 
 # Installation
 

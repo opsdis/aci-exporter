@@ -148,6 +148,12 @@ func main() {
 
 func getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 
+	openmetrics := false
+	// Check accept header for open metrics
+	if r.Header.Get("Accept") == "application/openmetrics-text" || viper.GetBool("openmetrics") {
+		openmetrics = true
+	}
+
 	hostname := r.URL.Query().Get("target")
 	profile := r.URL.Query().Get("profile")
 
@@ -163,9 +169,12 @@ func getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 		commonLabels := make(map[string]string)
 		commonLabels["aci"] = fabricName
 
-		var bodyText = Metrics2Prometheus(metrics, api.metricPrefix, commonLabels)
-
-		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+		var bodyText = Metrics2Prometheus(metrics, api.metricPrefix, commonLabels, openmetrics)
+		if openmetrics {
+			w.Header().Set("Content-Type", "application/openmetrics-text; version=0.0.1; charset=utf-8")
+		} else {
+			w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+		}
 		w.Header().Set("Content-Length", strconv.Itoa(len(bodyText)))
 
 		lrw := loggingResponseWriter{ResponseWriter: w}
