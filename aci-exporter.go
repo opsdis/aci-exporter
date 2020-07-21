@@ -89,9 +89,9 @@ func main() {
 	viper.SetConfigType("yaml")  // REQUIRED if the config file does not have the extension in the name
 
 	viper.AddConfigPath(".")
-	viper.AddConfigPath("$HOME/.mob-exporter")
-	viper.AddConfigPath("/usr/local/etc/mob-exporter")
-	viper.AddConfigPath("/etc/mob-exporter")
+	viper.AddConfigPath("$HOME/.aci-exporter")
+	viper.AddConfigPath("/usr/local/etc/aci-exporter")
+	viper.AddConfigPath("/etc/aci-exporter")
 
 	if *logFile != "" {
 		f, err := os.OpenFile(*logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
@@ -102,7 +102,7 @@ func main() {
 	}
 
 	if *writeConfig {
-		err := viper.WriteConfigAs("./mob_exporter_default_config.yaml")
+		err := viper.WriteConfigAs("./aci_exporter_default_config.yaml")
 		if err != nil {
 			log.Error("Can not write default config file - ", err)
 		}
@@ -115,6 +115,15 @@ func main() {
 		log.Info("No configuration file found - use defaults")
 	}
 
+	var query = Queries{}
+
+	err = viper.UnmarshalKey("queries", &query)
+
+	if err != nil {
+		log.Error("unable to decode into struct, %v", err)
+	}
+
+	handler := &HandlerInit{query}
 	if *usage {
 		flag.Usage()
 		os.Exit(0)
@@ -130,7 +139,8 @@ func main() {
 	)
 
 	// Setup handler for backend provider mertics
-	http.Handle("/probe", logcall(promMonitor(http.HandlerFunc(getMonitorMetrics), responseTime, "/probe")))
+	//http.Handle("/probe", logcall(promMonitor(http.HandlerFunc(getMonitorMetrics), responseTime, "/probe")))
+	http.Handle("/probe", logcall(promMonitor(http.HandlerFunc(handler.getMonitorMetrics), responseTime, "/probe")))
 	http.Handle("/alive", logcall(promMonitor(http.HandlerFunc(alive), responseTime, "/alive")))
 
 	// Setup handler for exporter metrics
@@ -146,7 +156,11 @@ func main() {
 	log.Fatal(s.ListenAndServe())
 }
 
-func getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
+type HandlerInit struct {
+	ConfigQueries Queries
+}
+
+func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 
 	openmetrics := false
 	// Check accept header for open metrics
@@ -154,18 +168,18 @@ func getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 		openmetrics = true
 	}
 
+	// Todo change the target to fabric name and move ip to apic to the fabric configuration
 	hostname := r.URL.Query().Get("target")
 	profile := r.URL.Query().Get("profile")
 
-	username := viper.GetString(fmt.Sprintf("profile.%s.username", profile))
-	password := viper.GetString(fmt.Sprintf("profile.%s.password", profile))
+	username := viper.GetString(fmt.Sprintf("fabric.%s.username", profile))
+	password := viper.GetString(fmt.Sprintf("fabric.%s.password", profile))
 
-	api := *newAciAPI(hostname, username, password)
+	api := *newAciAPI(hostname, username, password, h.ConfigQueries)
 
 	fabricName, metrics, status := api.CollectMetrics()
 
 	if status {
-
 		commonLabels := make(map[string]string)
 		commonLabels["aci"] = fabricName
 

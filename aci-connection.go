@@ -38,6 +38,7 @@ var responseTime = promauto.NewHistogramVec(prometheus.HistogramOpts{
 
 // AciConnection is the connection object
 type AciConnection struct {
+	hostname     string
 	username     string
 	password     string
 	URLMap       map[string]string
@@ -67,19 +68,18 @@ func newAciConnction(apichostname string, username string, password string) *Aci
 
 	urlMap := make(map[string]string)
 
-	//var hosturl = viper.GetString("aci.url") + apichostname
-	var hosturl = apichostname
-	urlMap["login"] = fmt.Sprintf("%s/api/mo/aaaLogin.xml", hosturl)
-	urlMap["logout"] = fmt.Sprintf("%s/api/mo/aaaLogout.xml", hosturl)
-	urlMap["fabric_health"] = fmt.Sprintf("%s/api/class/fabricHealthTotal.json", hosturl)
-	urlMap["node_health"] = fmt.Sprintf("%s/api/class/topSystem.json?rsp-subtree-include=health", hosturl)
-	urlMap["tenant_health"] = fmt.Sprintf("%s/api/class/fvTenant.json?rsp-subtree-include=health", hosturl)
-	urlMap["faults"] = fmt.Sprintf("%s/api/class/faultCountsWithDetails.json", hosturl)
-	urlMap["infra_node_health"] = fmt.Sprintf("%s/api/class/infraWiNode.json", hosturl)
+	urlMap["login"] = fmt.Sprintf("%s/api/mo/aaaLogin.xml", apichostname)
+	urlMap["logout"] = fmt.Sprintf("%s/api/mo/aaaLogout.xml", apichostname)
+	urlMap["fabric_health"] = fmt.Sprintf("%s/api/class/fabricHealthTotal.json", apichostname)
+	urlMap["node_health"] = fmt.Sprintf("%s/api/class/topSystem.json?rsp-subtree-include=health", apichostname)
+	urlMap["tenant_health"] = fmt.Sprintf("%s/api/class/fvTenant.json?rsp-subtree-include=health", apichostname)
+	urlMap["faults"] = fmt.Sprintf("%s/api/class/faultCountsWithDetails.json", apichostname)
+	urlMap["infra_node_health"] = fmt.Sprintf("%s/api/class/infraWiNode.json", apichostname)
 	// Used to get the fabric name
-	urlMap["fabric_name"] = fmt.Sprintf("%s/api/mo/topology/pod-1/node-1/av.json", hosturl)
+	urlMap["fabric_name"] = fmt.Sprintf("%s/api/mo/topology/pod-1/node-1/av.json", apichostname)
 
 	return &AciConnection{
+		hostname:     apichostname,
 		username:     username,
 		password:     password,
 		URLMap:       urlMap,
@@ -109,6 +109,15 @@ func (c AciConnection) logout() bool {
 
 func (c AciConnection) getByQuery(table string) (string, error) {
 	data, err := c.get(c.URLMap[table])
+	if err != nil {
+		log.Error(err)
+		return "", err
+	}
+	return string(data), nil
+}
+
+func (c AciConnection) getByClassQuery(class string, query string) (string, error) {
+	data, err := c.get(fmt.Sprintf("%s/api/class/%s.json%s", c.hostname, class, query))
 	if err != nil {
 		log.Error(err)
 		return "", err

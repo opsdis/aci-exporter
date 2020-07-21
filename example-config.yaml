@@ -19,3 +19,58 @@ httpclient:
   keepalive: 10
   timeout: 3
   tlshandshaketimeout: 10
+
+# The section define class based queries that should be ran by all profiles
+queries:
+  # Just some unique name
+  interface_info:
+    # The ACI class to query
+    class_name: ethpmPhysIf
+    metrics:
+      # The name of the metrics without prefix and unit
+      - name: interface_oper_state
+        # The field in the json that is used as the metric value, qualified path (gjson) under imdata
+        value_name: ethpmPhysIf.attributes.operSt
+        # Type
+        type: gauge
+        # Help text without prefix of metrics name
+        help: The current operational state of the interface. (0=unknown, 1=down, 2=up, 3=link-up)
+        # A string to float64 transform table of the value
+        value_transform:
+          'unknown': 0
+          'down': 1
+          'up': 2
+          'link-up': 3
+    # The labels to extract as regex
+    labels:
+      # The field in the json used to parse the labels from
+      - property_name: ethpmPhysIf.attributes.dn
+        # The regex where the string enclosed in the P<xyz> is the label name
+        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/phys-\\[(?P<interface>[^\\]]+)\\]/"
+
+
+  node_health:
+    class_name: topSystem
+    # Additional query parameters for the class query, must start with ? and be separated by &
+    query_parameter: "?rsp-subtree-include=health,required"
+    metrics:
+      - name: node_health
+        value_name: topSystem.children.0.healthInst.attributes.cur
+        type: "gauge"
+        help: "Returns the health score of a fabric node"
+        unit: "ratio"
+        # Recalculate the metrics value. The expression support simple math expressions - https://github.com/Knetic/govaluate
+        # The name must be value.
+        # This example recalculate percentage like 90 to 0.9
+        value_calculation: "value / 100"
+    labels:
+      - property_name: topSystem.attributes.dn
+        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys"
+      - property_name: topSystem.attributes.state
+        regex: "^(?P<state>.*)"
+      - property_name: topSystem.attributes.oobMgmtAddr
+        regex: "^(?P<oobMgmtAddr>.*)"
+      - property_name: topSystem.attributes.name
+        regex: "^(?P<nodename>.*)"
+      - property_name: topSystem.attributes.role
+        regex: "^(?P<role>.*)"

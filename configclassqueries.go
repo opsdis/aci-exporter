@@ -1,0 +1,41 @@
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// Copyright 2020 Opsdis AB
+
+package main
+
+type Queries map[string]*ClassQuery
+
+// ClassQuery define the structure of configured queries
+type ClassQuery struct {
+	ClassName      string         `mapstructure:"class_name"`
+	QueryParameter string         `mapstructure:"query_parameter"`
+	Metrics        []ConfigMetric `string:"metrics"`
+	Labels         []ConfigLabels `string:"labels"`
+}
+
+// ConfigMetric define the configuration of metric
+type ConfigMetric struct {
+	Name             string             `mapstructure:"name"`
+	ValueName        string             `mapstructure:"value_name"`
+	ValueCalculation string             `mapstructure:"value_calculation"`
+	Unit             string             `mapstructure:"unit"`
+	Type             string             `mapstructure:"type"`
+	Help             string             `mapstructure:"help"`
+	ValueTransform   map[string]float64 `mapstructure:"value_transform"`
+}
+
+// ConfigLabels define the configuration of label to parse
+type ConfigLabels struct {
+	PropertyName string `mapstructure:"property_name"`
+	Regex        string `mapstructure:"regex"`
+}

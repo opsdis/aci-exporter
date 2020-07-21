@@ -1,21 +1,28 @@
 aci-exporter
 ------------
 
-> This project is still in alpha
+> This project is still in alpha and everything may change 
 
 # Overview
-The aci-exporter provide metrics from an Cisco ACI fabric by using api calls to
-an ACPI controller(s).
+The aci-exporter provide metrics from a Cisco ACI fabric by using api calls to an ACPI controller(s).
 
-Most metrics are based on the health scoring provided by ACI. This includes:
+The export has some standard metric that is "built-in", but all metrics related to a class query can be configured. 
+For configuration of metrics based on class queries please look at `example-config.yaml` 
+
+The built-in metrics are based on queries that are not related to class queries like:
+TODO
+
+In the `exemple-config.yaml` are different examples of metrics queries like:
 
 - Node health of spine and leafs 
 - Fabric health
 - Tenant health
 - EPG health (TODO)
 
-It also include metrics of number of faults and severity, labeled by type of
+It also includes metrics of number of faults and severity, labeled by type of
 fault like operational and configuration.
+
+> Make sure you understand the ACI api before changing or creating new ones.
 
 # Configuration
 
@@ -49,5 +56,9 @@ reguest will have an openmetrics response.
 Please see file prometheus/prometheus.yml.
 
 # Grafana dashboards
+Todo 
 
-TODO
+# TODO
+- Add support to access any healthy apic in the fabric
+- Exclude configuration of the built in metrics
+- Add fabric specific configuration queries

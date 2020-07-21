@@ -14,9 +14,12 @@
 package main
 
 import (
+	"fmt"
+	"github.com/Knetic/govaluate"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"github.com/tidwall/gjson"
+	"github.com/umisama/go-regexpcache"
 	"regexp"
 	"strconv"
 	"time"
@@ -24,13 +27,12 @@ import (
 
 var re_health = regexp.MustCompile("topology/pod-(.*?)/health")
 
-//var re_podId = regexp.MustCompile("pod-(.*?)")
-
-func newAciAPI(apichostname string, username string, password string) *aciAPI {
+func newAciAPI(apichostname string, username string, password string, configQueries Queries) *aciAPI {
 
 	api := &aciAPI{
-		connection:   *newAciConnction(apichostname, username, password),
-		metricPrefix: viper.GetString("prefix"),
+		connection:    *newAciConnction(apichostname, username, password),
+		metricPrefix:  viper.GetString("prefix"),
+		configQueries: configQueries,
 	}
 
 	return api
@@ -38,10 +40,8 @@ func newAciAPI(apichostname string, username string, password string) *aciAPI {
 
 type aciAPI struct {
 	connection    AciConnection
-	batchFetch    bool
-	batchFilter   string
-	batchInterval int
 	metricPrefix  string
+	configQueries Queries
 }
 
 // CollectMetrics Gather all aci metrics and return name of the aci fabric, slice of metrics and status of
@@ -61,11 +61,15 @@ func (p aciAPI) CollectMetrics() (string, []MetricDefinition, bool) {
 	// Hold all metrics created during the session
 	metrics := []MetricDefinition{}
 
+	// Todo pointers like *p is problem if timeout
 	metrics = append(metrics, p.fabricHealth()...)
-	metrics = append(metrics, *p.nodeHealth())
+	//	metrics = append(metrics, *p.nodeHealth()) - moved to config
 	metrics = append(metrics, *p.tenantHealth())
 	metrics = append(metrics, p.faults()...)
 	metrics = append(metrics, *p.infraNodeInfo())
+
+	// Execute all configured metric definitions
+	metrics = append(metrics, p.configuredMetrics()...)
 
 	// Todo EPG health
 
@@ -380,6 +384,79 @@ func (p aciAPI) getFabricName() string {
 	}
 
 	return gjson.Get(data, "imdata.0.infraCont.attributes.fbDmNm").Str
+}
+
+func (p aciAPI) configuredMetrics() []MetricDefinition {
+	metricDefinitions := []MetricDefinition{}
+	for _, v := range p.configQueries {
+
+		data, err := p.connection.getByClassQuery(v.ClassName, v.QueryParameter)
+
+		if err != nil {
+			log.Error(fmt.Sprintf("%s not supported", v.ClassName), err)
+			return nil
+		}
+
+		// For each metrics in the config
+		for _, mv := range v.Metrics {
+			metricDefinition := MetricDefinition{}
+			metricDefinition.Name = mv.Name
+			metricDefinition.Description.Help = mv.Help
+			metricDefinition.Description.Type = mv.Type
+			metricDefinition.Description.Unit = mv.Unit
+
+			metrics := []Metric{}
+
+			result := gjson.Get(data, "imdata")
+
+			result.ForEach(func(key, value gjson.Result) bool {
+
+				metric := Metric{}
+
+				// find and parse all labels
+				metric.Labels = make(map[string]string)
+				for _, lv := range v.Labels {
+					re := regexpcache.MustCompile(lv.Regex)
+					println(lv.PropertyName)
+					match := re.FindStringSubmatch(gjson.Get(value.String(), lv.PropertyName).Str)
+					if len(match) != 0 {
+						for i, name := range re.SubexpNames() {
+							if i != 0 && name != "" {
+								metric.Labels[name] = match[i]
+							}
+						}
+					}
+				}
+
+				metric.Value = p.toFloat(gjson.Get(value.String(), mv.ValueName).Str)
+
+				// Post calculation on the value
+				if mv.ValueCalculation != "" {
+					expression, _ := govaluate.NewEvaluableExpression(mv.ValueCalculation)
+					parameters := make(map[string]interface{}, 8)
+					parameters["value"] = p.toFloat(gjson.Get(value.String(), mv.ValueName).Str)
+					result, _ := expression.Evaluate(parameters)
+					metric.Value = result.(float64)
+				}
+
+				// Transform on string value table to float
+				if len(mv.ValueTransform) != 0 {
+					if val, ok := mv.ValueTransform[gjson.Get(value.String(), mv.ValueName).Str]; ok {
+						metric.Value = val
+					}
+				}
+
+				metrics = append(metrics, metric)
+				return true
+			})
+
+			metricDefinition.Metrics = metrics
+
+			metricDefinitions = append(metricDefinitions, metricDefinition)
+		}
+	}
+
+	return metricDefinitions
 }
 
 func (p aciAPI) toRatio(value string) float64 {
