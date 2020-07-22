@@ -1,27 +1,32 @@
-# exporter port
+# Exporter web port
 port: 8080
-# configuration file name
+# Configuration file name default without postfix
 config: config
 # The prefix of the metrics
 prefix: aci_
 
-# Profiles for different fabrics
-profile:
-  profile-fabric-01:
-    # Apic username
-    username: foo
-    # Apic password
-    password: bar
-
-# Http client settings used to access apic
+# Http client settings used to access the apic
 httpclient:
   insecurehttps: true
   keepalive: 10
   timeout: 3
   tlshandshaketimeout: 10
 
+# Profiles for different fabrics
+fabrics:
+  profile-fabric-01:
+    # Apic username
+    username: foo
+    # Apic password
+    password: bar
+    # The available apic controllers
+    # The aci-exporter will use the first apic it can successfully login to, starting with the first in the list
+    apic:
+      - https://apic1
+      - https://apic2
+
 # The section define class based queries that should be ran by all profiles
-queries:
+class_queries:
   # Just some unique name
   interface_info:
     # The ACI class to query
@@ -74,3 +79,104 @@ queries:
         regex: "^(?P<nodename>.*)"
       - property_name: topSystem.attributes.role
         regex: "^(?P<role>.*)"
+
+  tenant_health:
+    class_name: fvTenant
+    query_parameter: "?rsp-subtree-include=health,required"
+    metrics:
+      - name: tenant_health
+        value_name: fvTenant.children.0.healthInst.attributes.cur
+        type: "gauge"
+        help: "Returns the health score of a tenant"
+        unit: "ratio"
+        value_calculation: "value / 100"
+    labels:
+      - property_name: fvTenant.attributes.name
+        regex: "^(?P<tenant>.*)"
+
+  infra_node_info:
+    class_name: infraWiNode
+    metrics:
+      - name: infra_node
+        value_name: fvTenant.children.0.healthInst.attributes.cur
+        type: "counter"
+        help: "Returns the info of the infrastructure apic node"
+        unit: "info"
+        value_calculation: "1"
+    labels:
+      - property_name: infraWiNode.attributes.nodeName
+        regex: "^(?P<name>.*)"
+      - property_name: infraWiNode.attributes.addr
+        regex: "^(?P<ip>.*)"
+      - property_name: infraWiNode.attributes.health
+        regex: "^(?P<health>.*)"
+      - property_name: infraWiNode.attributes.apicMode
+        regex: "^(?P<apicmode>.*)"
+      - property_name: infraWiNode.attributes.adminSt
+        regex: "^(?P<adminstatus>.*)"
+      - property_name: infraWiNode.attributes.operSt
+        regex: "^(?P<operstatus>.*)"
+      - property_name: infraWiNode.attributes.failoverStatus
+        regex: "^(?P<failoverStatus>.*)"
+      - property_name: infraWiNode.attributes.podId
+        regex: "^(?P<podid>.*)"
+
+  fabric_health:
+    class_name: fabricHealthTotal
+    query_parameter: '?query-target-filter=wcard(fabricHealthTotal.dn,"topology/.*/health"'
+    metrics:
+      - name: fabric_health
+        value_name: fabricHealthTotal.attributes.cur
+        unit: ratio
+        type: gauge
+        help: Returns the fabric health score
+        value_calculation: "value / 100"
+    labels:
+      - property_name: fabricHealthTotal.attributes.dn
+        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/health"
+
+
+# Compound queries 
+compound_queries:
+  object_count:
+    classnames:
+      - class_name: fvCtx
+        label_value: vrf
+        query_parameter: '?rsp-subtree-include=count'
+      - class_name: fvCEp
+        label_value: clientendpoints
+        query_parameter: '?rsp-subtree-include=count'
+      - class_name: fvAEPg
+        label_value: appepg
+        query_parameter: '?rsp-subtree-include=count'
+    labelname: object
+    metrics:
+      - name: object_instance
+        value_name: moCount.attributes.count
+        type: gauge
+        help: Returns the current count of objects
+
+  node_count:
+    # Define all the class queries to execute
+    classnames:
+      # The class to query
+      - class_name: topSystem
+        # The label value for the query
+        label_value: spine
+        query_parameter: '?query-target-filter=eq(topSystem.role,"spine")&rsp-subtree-include=count'
+      - class_name: topSystem
+        label_value: leaf
+        query_parameter: '?query-target-filter=eq(topSystem.role,"leaf")&rsp-subtree-include=count'
+      - class_name: topSystem
+        label_value: controller
+        query_parameter: '?query-target-filter=eq(topSystem.role,"controller")&rsp-subtree-include=count'
+    # The label name
+    labelname: nodetype
+    metrics:
+      # The metrics name
+      - name: nodes
+        # The field in the json that is used as the metric value, qualified path (gjson) under imdata
+        # If the above queries have different value_name if can be configured in the classnames section
+        value_name: moCount.attributes.count
+        type: gauge
+        help: Returns the current count of nodes

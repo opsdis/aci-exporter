@@ -38,20 +38,17 @@ var responseTime = promauto.NewHistogramVec(prometheus.HistogramOpts{
 
 // AciConnection is the connection object
 type AciConnection struct {
-	hostname     string
-	username     string
-	password     string
-	URLMap       map[string]string
-	Headers      map[string]string
-	Client       http.Client
-	responseTime *prometheus.HistogramVec
+	apicControllers  []string
+	activeController *int
+	username         string
+	password         string
+	URLMap           map[string]string
+	Headers          map[string]string
+	Client           http.Client
+	responseTime     *prometheus.HistogramVec
 }
 
-type monitorCountResponse struct {
-	Count int `json:"count"`
-}
-
-func newAciConnction(apichostname string, username string, password string) *AciConnection {
+func newAciConnction(apicControllers []string, username string, password string) *AciConnection {
 	// Empty cookie jar
 	jar, _ := cookiejar.New(nil)
 
@@ -68,38 +65,45 @@ func newAciConnction(apichostname string, username string, password string) *Aci
 
 	urlMap := make(map[string]string)
 
-	urlMap["login"] = fmt.Sprintf("%s/api/mo/aaaLogin.xml", apichostname)
-	urlMap["logout"] = fmt.Sprintf("%s/api/mo/aaaLogout.xml", apichostname)
-	urlMap["fabric_health"] = fmt.Sprintf("%s/api/class/fabricHealthTotal.json", apichostname)
-	urlMap["node_health"] = fmt.Sprintf("%s/api/class/topSystem.json?rsp-subtree-include=health", apichostname)
-	urlMap["tenant_health"] = fmt.Sprintf("%s/api/class/fvTenant.json?rsp-subtree-include=health", apichostname)
-	urlMap["faults"] = fmt.Sprintf("%s/api/class/faultCountsWithDetails.json", apichostname)
-	urlMap["infra_node_health"] = fmt.Sprintf("%s/api/class/infraWiNode.json", apichostname)
-	// Used to get the fabric name
-	urlMap["fabric_name"] = fmt.Sprintf("%s/api/mo/topology/pod-1/node-1/av.json", apichostname)
+	urlMap["login"] = "/api/mo/aaaLogin.xml"
+	urlMap["logout"] = "/api/mo/aaaLogout.xml"
+	urlMap["faults"] = "/api/class/faultCountsWithDetails.json"
+	urlMap["fabric_name"] = "/api/mo/topology/pod-1/node-1/av.json"
 
 	return &AciConnection{
-		hostname:     apichostname,
-		username:     username,
-		password:     password,
-		URLMap:       urlMap,
-		Headers:      headers,
-		Client:       *httpClient,
-		responseTime: responseTime,
+		apicControllers:  apicControllers,
+		activeController: new(int),
+		username:         username,
+		password:         password,
+		URLMap:           urlMap,
+		Headers:          headers,
+		Client:           *httpClient,
+		responseTime:     responseTime,
 	}
 }
 
-func (c AciConnection) login() bool {
-	_, status, err := c.doPostXML(c.URLMap["login"], []byte(fmt.Sprintf("<aaaUser name=%s pwd=%s/>", c.username, c.password)))
-	if err != nil || status != 200 {
-		log.Error(err)
-		return false
+func (c AciConnection) login() error {
+	for i, controller := range c.apicControllers {
+		_, status, err := c.doPostXML(fmt.Sprintf("%s%s", controller, c.URLMap["login"]),
+			[]byte(fmt.Sprintf("<aaaUser name=%s pwd=%s/>", c.username, c.password)))
+		if err != nil || status != 200 {
+
+			err = fmt.Errorf("failed to login to %s, try next apic", controller)
+
+			log.Error(err)
+		} else {
+			*c.activeController = i
+			log.Infof("Using apic %s", controller)
+			return nil
+		}
 	}
-	return true
+	return fmt.Errorf("failed to login to any apic controllers")
+
 }
 
 func (c AciConnection) logout() bool {
-	_, status, err := c.doPostXML(c.URLMap["logout"], []byte(fmt.Sprintf("<aaaUser name=%s/>", c.username)))
+	_, status, err := c.doPostXML(fmt.Sprintf("%s%s", c.apicControllers[*c.activeController], c.URLMap["logout"]),
+		[]byte(fmt.Sprintf("<aaaUser name=%s/>", c.username)))
 	if err != nil || status != 200 {
 		log.Error(err)
 		return false
@@ -108,18 +112,18 @@ func (c AciConnection) logout() bool {
 }
 
 func (c AciConnection) getByQuery(table string) (string, error) {
-	data, err := c.get(c.URLMap[table])
+	data, err := c.get(fmt.Sprintf("%s%s", c.apicControllers[*c.activeController], c.URLMap[table]))
 	if err != nil {
-		log.Error(err)
+		log.Error(fmt.Sprintf("Request %s failed - %s.", c.URLMap[table], err))
 		return "", err
 	}
 	return string(data), nil
 }
 
 func (c AciConnection) getByClassQuery(class string, query string) (string, error) {
-	data, err := c.get(fmt.Sprintf("%s/api/class/%s.json%s", c.hostname, class, query))
+	data, err := c.get(fmt.Sprintf("%s/api/class/%s.json%s", c.apicControllers[*c.activeController], class, query))
 	if err != nil {
-		log.Error(err)
+		log.Error(fmt.Sprintf("Class request %s failed - %s.", class, err))
 		return "", err
 	}
 	return string(data), nil

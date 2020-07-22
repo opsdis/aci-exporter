@@ -30,11 +30,6 @@ import (
 	"net/http"
 )
 
-type errormsg struct {
-	Errormsg string `json:"error"`
-	Status   int    `json:"status"`
-}
-
 type loggingResponseWriter struct {
 	http.ResponseWriter
 	statusCode int
@@ -57,13 +52,6 @@ func (lrw *loggingResponseWriter) Write(b []byte) (int, error) {
 }
 
 var version = "undefined"
-
-func getEnv(key, fallback string) string {
-	if value, ok := os.LookupEnv(key); ok {
-		return value
-	}
-	return fallback
-}
 
 func main() {
 
@@ -116,14 +104,19 @@ func main() {
 	}
 
 	var query = Queries{}
-
-	err = viper.UnmarshalKey("queries", &query)
-
+	err = viper.UnmarshalKey("class_queries", &query)
 	if err != nil {
 		log.Error("unable to decode into struct, %v", err)
 	}
 
-	handler := &HandlerInit{query}
+	var compoundquery = CompoundQueries{}
+	err = viper.UnmarshalKey("compound_queries", &compoundquery)
+	if err != nil {
+		log.Error("unable to decode into struct, %v", err)
+	}
+
+	handler := &HandlerInit{query, compoundquery}
+
 	if *usage {
 		flag.Usage()
 		os.Exit(0)
@@ -157,7 +150,8 @@ func main() {
 }
 
 type HandlerInit struct {
-	ConfigQueries Queries
+	ConfigQueries         Queries
+	AggregationClassQuery CompoundQueries
 }
 
 func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
@@ -169,17 +163,34 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Todo change the target to fabric name and move ip to apic to the fabric configuration
-	hostname := r.URL.Query().Get("target")
-	profile := r.URL.Query().Get("profile")
+	fabric := r.URL.Query().Get("target")
+	//profile := r.URL.Query().Get("profile")
 
-	username := viper.GetString(fmt.Sprintf("fabric.%s.username", profile))
-	password := viper.GetString(fmt.Sprintf("fabric.%s.password", profile))
+	// Check if a valid target
+	if !viper.IsSet(fmt.Sprintf("fabrics.%s", fabric)) {
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+		w.Header().Set("Content-Length", "0")
 
-	api := *newAciAPI(hostname, username, password, h.ConfigQueries)
+		lrw := loggingResponseWriter{ResponseWriter: w}
+		lrw.WriteHeader(404)
+		return
+	}
 
-	fabricName, metrics, status := api.CollectMetrics()
+	username := viper.GetString(fmt.Sprintf("fabrics.%s.username", fabric))
+	password := viper.GetString(fmt.Sprintf("fabrics.%s.password", fabric))
+	apicControllers := viper.GetStringSlice(fmt.Sprintf("fabrics.%s.apic", fabric))
 
-	if status {
+	api := *newAciAPI(apicControllers, username, password, h.ConfigQueries, h.AggregationClassQuery)
+
+	fabricName, metrics, err := api.CollectMetrics()
+
+	if err != nil {
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+		w.Header().Set("Content-Length", "0")
+
+		lrw := loggingResponseWriter{ResponseWriter: w}
+		lrw.WriteHeader(503)
+	} else {
 		commonLabels := make(map[string]string)
 		commonLabels["aci"] = fabricName
 
@@ -197,13 +208,6 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 		}
 
 		w.Write([]byte(bodyText))
-
-	} else {
-		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
-		w.Header().Set("Content-Length", "0")
-
-		lrw := loggingResponseWriter{ResponseWriter: w}
-		lrw.WriteHeader(401)
 	}
 	return
 }

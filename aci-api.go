@@ -20,62 +20,61 @@ import (
 	"github.com/spf13/viper"
 	"github.com/tidwall/gjson"
 	"github.com/umisama/go-regexpcache"
-	"regexp"
 	"strconv"
 	"time"
 )
 
-var re_health = regexp.MustCompile("topology/pod-(.*?)/health")
-
-func newAciAPI(apichostname string, username string, password string, configQueries Queries) *aciAPI {
+func newAciAPI(apicControllers []string, username string, password string, configQueries Queries, configCompoundQueries CompoundQueries) *aciAPI {
 
 	api := &aciAPI{
-		connection:    *newAciConnction(apichostname, username, password),
-		metricPrefix:  viper.GetString("prefix"),
-		configQueries: configQueries,
+		connection:               *newAciConnction(apicControllers, username, password),
+		metricPrefix:             viper.GetString("prefix"),
+		configQueries:            configQueries,
+		configAggregationQueries: configCompoundQueries,
 	}
 
 	return api
 }
 
 type aciAPI struct {
-	connection    AciConnection
-	metricPrefix  string
-	configQueries Queries
+	connection               AciConnection
+	metricPrefix             string
+	configQueries            Queries
+	configAggregationQueries CompoundQueries
 }
 
 // CollectMetrics Gather all aci metrics and return name of the aci fabric, slice of metrics and status of
 // successful login
-func (p aciAPI) CollectMetrics() (string, []MetricDefinition, bool) {
+func (p aciAPI) CollectMetrics() (string, []MetricDefinition, error) {
 	start := time.Now()
 
-	status := p.connection.login()
+	err := p.connection.login()
 	defer p.connection.logout()
 
-	if !status {
-		return "", nil, status
+	if err != nil {
+		return "", nil, err
 	}
 
-	fabricName := p.getFabricName()
+	fabricName, err := p.getFabricName()
+	if err != nil {
+		return "", nil, err
+	}
 
 	// Hold all metrics created during the session
-	metrics := []MetricDefinition{}
+	var metrics []MetricDefinition
 
-	// Todo pointers like *p is problem if timeout
-	metrics = append(metrics, p.fabricHealth()...)
-	//	metrics = append(metrics, *p.nodeHealth()) - moved to config
-	metrics = append(metrics, *p.tenantHealth())
+	// Built-in
 	metrics = append(metrics, p.faults()...)
-	metrics = append(metrics, *p.infraNodeInfo())
 
-	// Execute all configured metric definitions
+	// Execute all configured class queries
 	metrics = append(metrics, p.configuredMetrics()...)
 
-	// Todo EPG health
+	// Execute all configured aggregation queries
+	metrics = append(metrics, p.configuredCompounds()...)
 
 	metrics = append(metrics, *p.scrape(time.Since(start).Seconds()))
 
-	return fabricName, metrics, true
+	return fabricName, metrics, nil
 }
 
 func (p aciAPI) scrape(seconds float64) *MetricDefinition {
@@ -97,141 +96,6 @@ func (p aciAPI) scrape(seconds float64) *MetricDefinition {
 	return &metricDefinition
 }
 
-func (p aciAPI) fabricHealth() []MetricDefinition {
-	data, err := p.connection.getByQuery("fabric_health")
-	if err != nil {
-		log.Error("fabric_health not supported", err)
-		return nil
-	}
-
-	metricDefinitionOverall := MetricDefinition{}
-	metricDefinitionOverall.Name = "fabric_health_overall"
-	metricDefinitionOverall.Description = MetricDesc{
-		Help: "Returns the health score of the overall fabric",
-		Type: "gauge",
-		Unit: "ratio",
-	}
-	metricDefinitionOverall.Metrics = []Metric{}
-
-	metricDefinitionPod := MetricDefinition{}
-	metricDefinitionPod.Name = "pod_health"
-	metricDefinitionPod.Description = MetricDesc{
-		Help: "Returns the health score of a pod",
-		Type: "gauge",
-		Unit: "ratio",
-	}
-	metricDefinitionPod.Metrics = []Metric{}
-
-	result := gjson.Get(data, "imdata")
-
-	result.ForEach(func(key, value gjson.Result) bool {
-		dn := gjson.Get(value.String(), "fabricHealthTotal.attributes.dn")
-
-		metric := Metric{}
-
-		match := re_health.FindStringSubmatch(dn.Str)
-		if len(match) == 0 {
-			metric.Labels = make(map[string]string)
-
-			metric.Value = p.toRatio(gjson.Get(value.String(), "fabricHealthTotal.attributes.cur").Str)
-			metricDefinitionOverall.Metrics = append(metricDefinitionOverall.Metrics, metric)
-		} else {
-			metric.Labels = make(map[string]string)
-			metric.Labels["podid"] = match[1]
-
-			metric.Value = p.toRatio(gjson.Get(value.String(), "fabricHealthTotal.attributes.cur").Str)
-
-			metricDefinitionPod.Metrics = append(metricDefinitionPod.Metrics, metric)
-		}
-		return true
-	})
-
-	return []MetricDefinition{metricDefinitionOverall, metricDefinitionPod}
-}
-
-// nodeHealth only leaf and spine nodes
-func (p aciAPI) nodeHealth() *MetricDefinition {
-	data, err := p.connection.getByQuery("node_health")
-	if err != nil {
-		log.Error("node_health not supported", err)
-		return nil
-	}
-
-	metricDefinition := MetricDefinition{}
-	metricDefinition.Name = "node_health"
-
-	metricDefinition.Description = MetricDesc{
-		Help: "Returns the health score of a fabric node",
-		Type: "gauge",
-		Unit: "ratio",
-	}
-
-	metrics := []Metric{}
-	result := gjson.Get(data, "imdata")
-
-	result.ForEach(func(key, value gjson.Result) bool {
-		role := gjson.Get(value.String(), "topSystem.attributes.role").Str
-		metric := Metric{}
-
-		if role != "controller" {
-
-			metric.Labels = make(map[string]string)
-			metric.Labels["podid"] = gjson.Get(value.String(), "topSystem.attributes.podId").Str
-			metric.Labels["state"] = gjson.Get(value.String(), "topSystem.attributes.state").Str
-			metric.Labels["oobmgmtaddr"] = gjson.Get(value.String(), "topSystem.attributes.oobMgmtAddr").Str
-			metric.Labels["nodeid"] = gjson.Get(value.String(), "topSystem.attributes.id").Str
-			metric.Labels["name"] = gjson.Get(value.String(), "topSystem.attributes.name").Str
-			metric.Labels["role"] = role
-
-			metric.Value = p.toRatio(gjson.Get(value.String(), "topSystem.children.0.healthInst.attributes.cur").Str)
-
-			metrics = append(metrics, metric)
-		}
-		return true // keep iterating
-	})
-
-	metricDefinition.Metrics = metrics
-
-	return &metricDefinition
-}
-
-func (p aciAPI) tenantHealth() *MetricDefinition {
-	data, err := p.connection.getByQuery("tenant_health")
-	if err != nil {
-		log.Error("tenant_health not supported", err)
-		return nil
-	}
-
-	metricDefinition := MetricDefinition{}
-	metricDefinition.Name = "tenant_health"
-	metricDefinition.Description = MetricDesc{
-		Help: "Returns the health score of a tenant",
-		Type: "gauge",
-		Unit: "ratio",
-	}
-
-	metrics := []Metric{}
-
-	result := gjson.Get(data, "imdata")
-
-	result.ForEach(func(key, value gjson.Result) bool {
-
-		metric := Metric{}
-
-		metric.Labels = make(map[string]string)
-		metric.Labels["domain"] = gjson.Get(value.String(), "fvTenant.attributes.name").Str
-
-		metric.Value = p.toRatio(gjson.Get(value.String(), "fvTenant.children.0.healthInst.attributes.cur").Str)
-
-		metrics = append(metrics, metric)
-
-		return true // keep iterating
-	})
-
-	metricDefinition.Metrics = metrics
-	return &metricDefinition
-}
-
 func (p aciAPI) faults() []MetricDefinition {
 	data, err := p.connection.getByQuery("faults")
 	if err != nil {
@@ -247,7 +111,7 @@ func (p aciAPI) faults() []MetricDefinition {
 		Unit: "",
 	}
 
-	metrics := []Metric{}
+	var metrics []Metric
 	children := gjson.Get(data, "imdata.0.faultCountsWithDetails.children.#.faultTypeCounts")
 
 	children.ForEach(func(key, value gjson.Result) bool {
@@ -332,62 +196,45 @@ func (p aciAPI) faults() []MetricDefinition {
 	return []MetricDefinition{metricDefinitionFaults, metricDefinitionAcked}
 }
 
-func (p aciAPI) infraNodeInfo() *MetricDefinition {
-	data, err := p.connection.getByQuery("infra_node_health")
-	if err != nil {
-		log.Error("infra_node_health not supported", err)
-		return nil
-	}
-
-	metricDefinition := MetricDefinition{}
-	metricDefinition.Name = "infra_node"
-
-	metricDefinition.Description = MetricDesc{
-		Help: "Returns the info of the infrastructure apic node",
-		Type: "counter",
-		Unit: "info",
-	}
-
-	metrics := []Metric{}
-	result := gjson.Get(data, "imdata")
-
-	result.ForEach(func(key, value gjson.Result) bool {
-
-		metric := Metric{}
-
-		metric.Labels = make(map[string]string)
-		metric.Labels["name"] = gjson.Get(value.String(), "infraWiNode.attributes.nodeName").Str
-		metric.Labels["address"] = gjson.Get(value.String(), "infraWiNode.attributes.addr").Str
-		metric.Labels["health"] = gjson.Get(value.String(), "infraWiNode.attributes.health").Str
-		metric.Labels["apicmode"] = gjson.Get(value.String(), "infraWiNode.attributes.apicMode").Str
-		metric.Labels["adminstatus"] = gjson.Get(value.String(), "infraWiNode.attributes.adminSt").Str
-		metric.Labels["operstatus"] = gjson.Get(value.String(), "infraWiNode.attributes.operSt").Str
-		metric.Labels["failoverStatus"] = gjson.Get(value.String(), "infraWiNode.attributes.failoverStatus").Str
-		metric.Labels["podid"] = gjson.Get(value.String(), "infraWiNode.attributes.podId").Str
-
-		metric.Value = 1.0
-
-		metrics = append(metrics, metric)
-
-		return true
-	})
-
-	metricDefinition.Metrics = metrics
-	return &metricDefinition
-}
-
-func (p aciAPI) getFabricName() string {
+func (p aciAPI) getFabricName() (string, error) {
 	data, err := p.connection.getByQuery("fabric_name")
 	if err != nil {
-		log.Error("fabric_health not supported", err)
-		return ""
+		return "", err
 	}
 
-	return gjson.Get(data, "imdata.0.infraCont.attributes.fbDmNm").Str
+	return gjson.Get(data, "imdata.0.infraCont.attributes.fbDmNm").Str, nil
+}
+
+func (p aciAPI) configuredCompounds() []MetricDefinition {
+	var metricDefinitions []MetricDefinition
+	for _, v := range p.configAggregationQueries {
+		metricDefinition := MetricDefinition{}
+		metricDefinition.Name = v.Metrics[0].Name
+		metricDefinition.Description.Help = v.Metrics[0].Help
+		metricDefinition.Description.Type = v.Metrics[0].Type
+		metricDefinition.Description.Unit = v.Metrics[0].Unit
+
+		var metrics []Metric
+		for _, classlabel := range v.ClassNames {
+			metric := Metric{}
+			data, _ := p.connection.getByClassQuery(classlabel.Class, classlabel.QueryParameter)
+			if classlabel.ValueName == "" {
+				metric.Value = p.toFloat(gjson.Get(data, fmt.Sprintf("imdata.0.%s", v.Metrics[0].ValueName)).Str)
+			} else {
+				metric.Value = p.toFloat(gjson.Get(data, fmt.Sprintf("imdata.0.%s", classlabel.ValueName)).Str)
+			}
+			metric.Labels = make(map[string]string)
+			metric.Labels[v.LabelName] = classlabel.Label
+			metrics = append(metrics, metric)
+		}
+		metricDefinition.Metrics = metrics
+		metricDefinitions = append(metricDefinitions, metricDefinition)
+	}
+	return metricDefinitions
 }
 
 func (p aciAPI) configuredMetrics() []MetricDefinition {
-	metricDefinitions := []MetricDefinition{}
+	var metricDefinitions []MetricDefinition
 	for _, v := range p.configQueries {
 
 		data, err := p.connection.getByClassQuery(v.ClassName, v.QueryParameter)
@@ -405,7 +252,7 @@ func (p aciAPI) configuredMetrics() []MetricDefinition {
 			metricDefinition.Description.Type = mv.Type
 			metricDefinition.Description.Unit = mv.Unit
 
-			metrics := []Metric{}
+			var metrics []Metric
 
 			result := gjson.Get(data, "imdata")
 
@@ -417,7 +264,6 @@ func (p aciAPI) configuredMetrics() []MetricDefinition {
 				metric.Labels = make(map[string]string)
 				for _, lv := range v.Labels {
 					re := regexpcache.MustCompile(lv.Regex)
-					println(lv.PropertyName)
 					match := re.FindStringSubmatch(gjson.Get(value.String(), lv.PropertyName).Str)
 					if len(match) != 0 {
 						for i, name := range re.SubexpNames() {

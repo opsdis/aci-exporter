@@ -14,6 +14,7 @@
 package main
 
 type Queries map[string]*ClassQuery
+type CompoundQueries map[string]*CompoundClassQuery
 
 // ClassQuery define the structure of configured queries
 type ClassQuery struct {
@@ -38,4 +39,18 @@ type ConfigMetric struct {
 type ConfigLabels struct {
 	PropertyName string `mapstructure:"property_name"`
 	Regex        string `mapstructure:"regex"`
+}
+
+// CompoundClassQuery define aggregation by common label, typical used for counting
+type CompoundClassQuery struct {
+	ClassNames []ClassLabelMapping `string:"classnames"`
+	Metrics    []ConfigMetric      `string:"metrics"`
+	LabelName  string              `mapstructure:"labelname"`
+}
+
+type ClassLabelMapping struct {
+	Class          string `mapstructure:"class_name"`
+	Label          string `mapstructure:"label_value"`
+	QueryParameter string `mapstructure:"query_parameter"`
+	ValueName      string `mapstructure:"value_name"`
 }
