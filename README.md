@@ -1,7 +1,7 @@
 Promethues aci-exporter
 ------------
 
-> This project is still in alpha and everything may change. If this exporter is useful or might be please share
+> This project is still in alpha and everything may change. If this exporter is useful or might be, please share
 > your experience and/or improvements.  
 
 # Overview
