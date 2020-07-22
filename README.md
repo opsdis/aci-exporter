@@ -98,10 +98,30 @@ Any access failures to apic[s] are written to the log.
     go build -o build/aci-exporter  *.go
 
 ## Run
-    .build/aci-exporter 
-    
+By default the exporter will look for a configuration file called `config.yaml`. The directory search paths are:
+
+- Current directory
+- $HOME/.aci-exporter
+- usr/local/etc/aci-exporter
+- etc/aci-exporter
+
+```
+    ./build/aci-exporter
+```
+
+To run against the Cisco ACI sandbox:
+```
+    ./build/aci-exporter -config example-config.yaml
+```
+> Make sure that the sanbox url and authentication is correct. Check out Cisco sandboxes on 
+> https://devnetsandbox.cisco.com/RM/Topology - "ACI Simulator AlwaysOn"
+
 ## Test
-    curl -s 'http://localhost:8080/probe?target=my-fabric'
+To test against the Cisco ACI sandbox:
+
+```
+    curl -s 'http://localhost:8080/probe?target=cisco_sandbox'
+```
     
 The target is a named fabric in the configuration file.
     

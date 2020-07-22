@@ -14,6 +14,13 @@ httpclient:
 
 # Profiles for different fabrics
 fabrics:
+  # This is the Cisco provided sandbox that is open for testing
+  cisco_sandbox:
+    username: admin
+    password: ciscopsdt
+    apic:
+      - https://sandboxapicdc.cisco.com
+
   profile-fabric-01:
     # Apic username
     username: foo
