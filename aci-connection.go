@@ -40,17 +40,15 @@ var responseTime = promauto.NewHistogramVec(prometheus.HistogramOpts{
 // AciConnection is the connection object
 type AciConnection struct {
 	ctx              context.Context
-	apicControllers  []string
+	fabricConfig     Fabric
 	activeController *int
-	username         string
-	password         string
 	URLMap           map[string]string
 	Headers          map[string]string
 	Client           http.Client
 	responseTime     *prometheus.HistogramVec
 }
 
-func newAciConnction(ctx context.Context, apicControllers []string, username string, password string) *AciConnection {
+func newAciConnction(ctx context.Context, fabricConfig Fabric) *AciConnection {
 	// Empty cookie jar
 	jar, _ := cookiejar.New(nil)
 
@@ -74,10 +72,8 @@ func newAciConnction(ctx context.Context, apicControllers []string, username str
 
 	return &AciConnection{
 		ctx:              ctx,
-		apicControllers:  apicControllers,
+		fabricConfig:     fabricConfig,
 		activeController: new(int),
-		username:         username,
-		password:         password,
 		URLMap:           urlMap,
 		Headers:          headers,
 		Client:           *httpClient,
@@ -86,9 +82,9 @@ func newAciConnction(ctx context.Context, apicControllers []string, username str
 }
 
 func (c AciConnection) login() error {
-	for i, controller := range c.apicControllers {
+	for i, controller := range c.fabricConfig.Apic {
 		_, status, err := c.doPostXML(fmt.Sprintf("%s%s", controller, c.URLMap["login"]),
-			[]byte(fmt.Sprintf("<aaaUser name=%s pwd=%s/>", c.username, c.password)))
+			[]byte(fmt.Sprintf("<aaaUser name=%s pwd=%s/>", c.fabricConfig.Username, c.fabricConfig.Password)))
 		if err != nil || status != 200 {
 
 			err = fmt.Errorf("failed to login to %s, try next apic", controller)
@@ -108,8 +104,8 @@ func (c AciConnection) login() error {
 }
 
 func (c AciConnection) logout() bool {
-	_, status, err := c.doPostXML(fmt.Sprintf("%s%s", c.apicControllers[*c.activeController], c.URLMap["logout"]),
-		[]byte(fmt.Sprintf("<aaaUser name=%s/>", c.username)))
+	_, status, err := c.doPostXML(fmt.Sprintf("%s%s", c.fabricConfig.Apic[*c.activeController], c.URLMap["logout"]),
+		[]byte(fmt.Sprintf("<aaaUser name=%s/>", c.fabricConfig.Username)))
 	if err != nil || status != 200 {
 		log.WithFields(log.Fields{
 			"requestid": c.ctx.Value("requestid"),
@@ -120,7 +116,7 @@ func (c AciConnection) logout() bool {
 }
 
 func (c AciConnection) getByQuery(table string) (string, error) {
-	data, err := c.get(fmt.Sprintf("%s%s", c.apicControllers[*c.activeController], c.URLMap[table]))
+	data, err := c.get(fmt.Sprintf("%s%s", c.fabricConfig.Apic[*c.activeController], c.URLMap[table]))
 	if err != nil {
 		log.WithFields(log.Fields{
 			"requestid": c.ctx.Value("requestid"),
@@ -131,7 +127,7 @@ func (c AciConnection) getByQuery(table string) (string, error) {
 }
 
 func (c AciConnection) getByClassQuery(class string, query string) (string, error) {
-	data, err := c.get(fmt.Sprintf("%s/api/class/%s.json%s", c.apicControllers[*c.activeController], class, query))
+	data, err := c.get(fmt.Sprintf("%s/api/class/%s.json%s", c.fabricConfig.Apic[*c.activeController], class, query))
 	if err != nil {
 		log.WithFields(log.Fields{
 			"requestid": c.ctx.Value("requestid"),

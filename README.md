@@ -63,11 +63,11 @@ aci_nodes{aci="ACI Fabric1",node="controller"} 1
 
 ## Built-in queries  
 The export has some standard metric "built-in". These are:
-- Faults, labeled by severity and type of fault, like operational faults and configuration faults.
+- `faults`, labeled by severity and type of fault, like operational, configuration and environment faults.
 
 # Configuration
 
-> For configuration please see the `example-config.yml` file.
+> For configuration options please see the `example-config.yml` file.
 
 All attributes in the configuration has default values, except for the fabric and the different query sections.
 A fabric profile include the information specific to an ACI fabrics, like authentication and apic(s) url.
@@ -124,7 +124,14 @@ To test against the Cisco ACI sandbox:
 ```
     
 The target is a named fabric in the configuration file.
-    
+
+There is also possible to run a limited number of queries by using the query parameter `queries`.
+This should be a comma separated list of the query names in the config file. It may also contain builtin query names.
+
+```
+    curl -s 'http://localhost:8080/probe?target=cisco_sandbox&queries=node_health,faults'
+```
+     
 # Prometheus configuration
 
 Please see file prometheus/prometheus.yml.

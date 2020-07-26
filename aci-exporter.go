@@ -168,6 +168,7 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fabric := r.URL.Query().Get("target")
+	queries := r.URL.Query().Get("queries")
 
 	// Check if a valid target
 	if !viper.IsSet(fmt.Sprintf("fabrics.%s", fabric)) {
@@ -183,7 +184,9 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 	password := viper.GetString(fmt.Sprintf("fabrics.%s.password", fabric))
 	apicControllers := viper.GetStringSlice(fmt.Sprintf("fabrics.%s.apic", fabric))
 
-	api := *newAciAPI(r.Context(), apicControllers, username, password, h.AllQueries)
+	fabricConfig := Fabric{Username: username, Password: password, Apic: apicControllers}
+
+	api := *newAciAPI(r.Context(), fabricConfig, h.AllQueries, queries)
 
 	fabricName, metrics, err := api.CollectMetrics()
 

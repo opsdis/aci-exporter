@@ -22,17 +22,57 @@ import (
 	"github.com/tidwall/gjson"
 	"github.com/umisama/go-regexpcache"
 	"strconv"
+	"strings"
 	"time"
 )
 
-func newAciAPI(ctx context.Context, apicControllers []string, username string, password string, query AllQueries) *aciAPI {
+func newAciAPI(ctx context.Context, fabricConfig Fabric, configQueries AllQueries, queryFilter string) *aciAPI {
+
+	executeQueries := configQueries
+	queryArray := strings.Split(queryFilter, ",")
+	if queryArray[0] != "" {
+		// If there are some queries named
+		executeQueries.ClassQueries = ClassQueries{}
+		executeQueries.CompoundClassQueries = CompoundClassQueries{}
+		for _, queryName := range queryArray {
+			for configQueryName := range configQueries.ClassQueries {
+				if queryName == configQueryName {
+					executeQueries.ClassQueries[configQueryName] = configQueries.ClassQueries[configQueryName]
+				}
+			}
+			for k := range configQueries.CompoundClassQueries {
+				if queryName == k {
+					executeQueries.CompoundClassQueries[k] = configQueries.CompoundClassQueries[k]
+				}
+			}
+		}
+	} else {
+		// Use all configured
+		executeQueries = configQueries
+	}
 
 	api := &aciAPI{
 		ctx:                      ctx,
-		connection:               *newAciConnction(ctx, apicControllers, username, password),
+		connection:               *newAciConnction(ctx, fabricConfig),
 		metricPrefix:             viper.GetString("prefix"),
-		configQueries:            query.ClassQueries,
-		configAggregationQueries: query.CompoundClassQueries,
+		configQueries:            executeQueries.ClassQueries,
+		configAggregationQueries: executeQueries.CompoundClassQueries,
+		confgBuiltInQueries:      BuilitinQueries{},
+	}
+
+	// Make sure all built in queries are handled
+	if queryArray[0] != "" {
+		// If query parameter queries is used
+		for _, v := range queryArray {
+			if v == "faults" {
+				api.confgBuiltInQueries["faults"] = api.faults
+			}
+			// Add all other builtin with if statements
+		}
+	} else {
+		// If query parameter queries is NOT used, include all
+		api.confgBuiltInQueries["faults"] = api.faults
+		// Add all other builtin
 	}
 
 	return api
@@ -44,6 +84,7 @@ type aciAPI struct {
 	metricPrefix             string
 	configQueries            ClassQueries
 	configAggregationQueries CompoundClassQueries
+	confgBuiltInQueries      BuilitinQueries
 }
 
 // CollectMetrics Gather all aci metrics and return name of the aci fabric, slice of metrics and status of
@@ -67,13 +108,13 @@ func (p aciAPI) CollectMetrics() (string, []MetricDefinition, error) {
 	var metrics []MetricDefinition
 
 	// Built-in
-	metrics = append(metrics, p.faults()...)
+	metrics = append(metrics, p.configuredBuiltInMetrics()...)
 
 	// Execute all configured class queries
-	metrics = append(metrics, p.configuredMetrics()...)
+	metrics = append(metrics, p.configuredClassMetrics()...)
 
-	// Execute all configured aggregation queries
-	metrics = append(metrics, p.configuredCompounds()...)
+	// Execute all configured compound queries
+	metrics = append(metrics, p.configuredCompoundsMetrics()...)
 
 	metrics = append(metrics, *p.scrape(time.Since(start).Seconds()))
 
@@ -97,6 +138,14 @@ func (p aciAPI) scrape(seconds float64) *MetricDefinition {
 	metricDefinition.Metrics = append(metricDefinition.Metrics, metric)
 
 	return &metricDefinition
+}
+
+func (p aciAPI) configuredBuiltInMetrics() []MetricDefinition {
+	var metricDefinitions = []MetricDefinition{}
+	for _, fun := range p.confgBuiltInQueries {
+		metricDefinitions = append(metricDefinitions, fun()...)
+	}
+	return metricDefinitions
 }
 
 func (p aciAPI) faults() []MetricDefinition {
@@ -210,7 +259,7 @@ func (p aciAPI) getFabricName() (string, error) {
 	return gjson.Get(data, "imdata.0.infraCont.attributes.fbDmNm").Str, nil
 }
 
-func (p aciAPI) configuredCompounds() []MetricDefinition {
+func (p aciAPI) configuredCompoundsMetrics() []MetricDefinition {
 	var metricDefinitions []MetricDefinition
 	for _, v := range p.configAggregationQueries {
 		metricDefinition := MetricDefinition{}
@@ -238,7 +287,7 @@ func (p aciAPI) configuredCompounds() []MetricDefinition {
 	return metricDefinitions
 }
 
-func (p aciAPI) configuredMetrics() []MetricDefinition {
+func (p aciAPI) configuredClassMetrics() []MetricDefinition {
 	var metricDefinitions []MetricDefinition
 	for _, v := range p.configQueries {
 
