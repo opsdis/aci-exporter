@@ -14,6 +14,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"github.com/Knetic/govaluate"
 	log "github.com/sirupsen/logrus"
@@ -24,23 +25,25 @@ import (
 	"time"
 )
 
-func newAciAPI(apicControllers []string, username string, password string, configQueries Queries, configCompoundQueries CompoundQueries) *aciAPI {
+func newAciAPI(ctx context.Context, apicControllers []string, username string, password string, query AllQueries) *aciAPI {
 
 	api := &aciAPI{
-		connection:               *newAciConnction(apicControllers, username, password),
+		ctx:                      ctx,
+		connection:               *newAciConnction(ctx, apicControllers, username, password),
 		metricPrefix:             viper.GetString("prefix"),
-		configQueries:            configQueries,
-		configAggregationQueries: configCompoundQueries,
+		configQueries:            query.ClassQueries,
+		configAggregationQueries: query.CompoundClassQueries,
 	}
 
 	return api
 }
 
 type aciAPI struct {
+	ctx                      context.Context
 	connection               AciConnection
 	metricPrefix             string
-	configQueries            Queries
-	configAggregationQueries CompoundQueries
+	configQueries            ClassQueries
+	configAggregationQueries CompoundClassQueries
 }
 
 // CollectMetrics Gather all aci metrics and return name of the aci fabric, slice of metrics and status of
@@ -99,7 +102,9 @@ func (p aciAPI) scrape(seconds float64) *MetricDefinition {
 func (p aciAPI) faults() []MetricDefinition {
 	data, err := p.connection.getByQuery("faults")
 	if err != nil {
-		log.Error("faults not supported", err)
+		log.WithFields(log.Fields{
+			"requestid": p.ctx.Value("requestid"),
+		}).Error("faults not supported", err)
 		return nil
 	}
 
@@ -240,7 +245,9 @@ func (p aciAPI) configuredMetrics() []MetricDefinition {
 		data, err := p.connection.getByClassQuery(v.ClassName, v.QueryParameter)
 
 		if err != nil {
-			log.Error(fmt.Sprintf("%s not supported", v.ClassName), err)
+			log.WithFields(log.Fields{
+				"requestid": p.ctx.Value("requestid"),
+			}).Error(fmt.Sprintf("%s not supported", v.ClassName), err)
 			return nil
 		}
 

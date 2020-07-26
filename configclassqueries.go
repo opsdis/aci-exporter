@@ -13,8 +13,13 @@
 
 package main
 
-type Queries map[string]*ClassQuery
-type CompoundQueries map[string]*CompoundClassQuery
+type ClassQueries map[string]*ClassQuery
+type CompoundClassQueries map[string]*CompoundClassQuery
+
+type AllQueries struct {
+	ClassQueries         ClassQueries
+	CompoundClassQueries CompoundClassQueries
+}
 
 // ClassQuery define the structure of configured queries
 type ClassQuery struct {

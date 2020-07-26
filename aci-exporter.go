@@ -65,6 +65,8 @@ func main() {
 
 	flag.Int("p", viper.GetInt("port"), "The port to start on")
 	logFile := flag.String("logfile", viper.GetString("logfile"), "Set log file, default stdout")
+	logFormat := flag.String("logformat", viper.GetString("logformat"), "Set log format to text or json, default json")
+
 	config := flag.String("config", viper.GetString("config"), "Set configuration file, default config.yaml")
 	usage := flag.Bool("u", false, "Show usage")
 	writeConfig := flag.Bool("default", false, "Write default config")
@@ -72,6 +74,9 @@ func main() {
 	flag.Parse()
 
 	log.SetFormatter(&log.JSONFormatter{})
+	if *logFormat == "text" {
+		log.SetFormatter(&log.TextFormatter{})
+	}
 
 	viper.SetConfigName(*config) // name of config file (without extension)
 	viper.SetConfigType("yaml")  // REQUIRED if the config file does not have the extension in the name
@@ -103,19 +108,20 @@ func main() {
 		log.Info("No configuration file found - use defaults")
 	}
 
-	var query = Queries{}
-	err = viper.UnmarshalKey("class_queries", &query)
+	var classQueries = ClassQueries{}
+	err = viper.UnmarshalKey("class_queries", &classQueries)
 	if err != nil {
 		log.Error("unable to decode into struct, %v", err)
 	}
 
-	var compoundquery = CompoundQueries{}
-	err = viper.UnmarshalKey("compound_queries", &compoundquery)
+	var compoundClassQueries = CompoundClassQueries{}
+	err = viper.UnmarshalKey("compound_queries", &compoundClassQueries)
 	if err != nil {
 		log.Error("unable to decode into struct, %v", err)
 	}
 
-	handler := &HandlerInit{query, compoundquery}
+	allQueries := AllQueries{ClassQueries: classQueries, CompoundClassQueries: compoundClassQueries}
+	handler := &HandlerInit{allQueries}
 
 	if *usage {
 		flag.Usage()
@@ -150,8 +156,7 @@ func main() {
 }
 
 type HandlerInit struct {
-	ConfigQueries         Queries
-	AggregationClassQuery CompoundQueries
+	AllQueries AllQueries
 }
 
 func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
@@ -162,9 +167,7 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 		openmetrics = true
 	}
 
-	// Todo change the target to fabric name and move ip to apic to the fabric configuration
 	fabric := r.URL.Query().Get("target")
-	//profile := r.URL.Query().Get("profile")
 
 	// Check if a valid target
 	if !viper.IsSet(fmt.Sprintf("fabrics.%s", fabric)) {
@@ -180,7 +183,7 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 	password := viper.GetString(fmt.Sprintf("fabrics.%s.password", fabric))
 	apicControllers := viper.GetStringSlice(fmt.Sprintf("fabrics.%s.apic", fabric))
 
-	api := *newAciAPI(apicControllers, username, password, h.ConfigQueries, h.AggregationClassQuery)
+	api := *newAciAPI(r.Context(), apicControllers, username, password, h.AllQueries)
 
 	fabricName, metrics, err := api.CollectMetrics()
 

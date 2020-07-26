@@ -46,6 +46,8 @@ func SetDefaultValues() {
 	viper.BindEnv("port")
 	viper.SetDefault("logfile", "")
 	viper.BindEnv("logfile")
+	viper.SetDefault("logformat", "json")
+	viper.BindEnv("logformat")
 	viper.SetDefault("config", "config")
 	viper.BindEnv("config")
 	viper.SetDefault("prefix", "aci_")

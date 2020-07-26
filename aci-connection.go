@@ -15,6 +15,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -38,6 +39,7 @@ var responseTime = promauto.NewHistogramVec(prometheus.HistogramOpts{
 
 // AciConnection is the connection object
 type AciConnection struct {
+	ctx              context.Context
 	apicControllers  []string
 	activeController *int
 	username         string
@@ -48,7 +50,7 @@ type AciConnection struct {
 	responseTime     *prometheus.HistogramVec
 }
 
-func newAciConnction(apicControllers []string, username string, password string) *AciConnection {
+func newAciConnction(ctx context.Context, apicControllers []string, username string, password string) *AciConnection {
 	// Empty cookie jar
 	jar, _ := cookiejar.New(nil)
 
@@ -71,6 +73,7 @@ func newAciConnction(apicControllers []string, username string, password string)
 	urlMap["fabric_name"] = "/api/mo/topology/pod-1/node-1/av.json"
 
 	return &AciConnection{
+		ctx:              ctx,
 		apicControllers:  apicControllers,
 		activeController: new(int),
 		username:         username,
@@ -93,7 +96,10 @@ func (c AciConnection) login() error {
 			log.Error(err)
 		} else {
 			*c.activeController = i
-			log.Infof("Using apic %s", controller)
+			log.WithFields(log.Fields{
+				"requestid": c.ctx.Value("requestid"),
+			}).Info("Using apic %s", controller)
+
 			return nil
 		}
 	}
@@ -105,7 +111,9 @@ func (c AciConnection) logout() bool {
 	_, status, err := c.doPostXML(fmt.Sprintf("%s%s", c.apicControllers[*c.activeController], c.URLMap["logout"]),
 		[]byte(fmt.Sprintf("<aaaUser name=%s/>", c.username)))
 	if err != nil || status != 200 {
-		log.Error(err)
+		log.WithFields(log.Fields{
+			"requestid": c.ctx.Value("requestid"),
+		}).Error(err)
 		return false
 	}
 	return true
@@ -114,7 +122,9 @@ func (c AciConnection) logout() bool {
 func (c AciConnection) getByQuery(table string) (string, error) {
 	data, err := c.get(fmt.Sprintf("%s%s", c.apicControllers[*c.activeController], c.URLMap[table]))
 	if err != nil {
-		log.Error(fmt.Sprintf("Request %s failed - %s.", c.URLMap[table], err))
+		log.WithFields(log.Fields{
+			"requestid": c.ctx.Value("requestid"),
+		}).Error(fmt.Sprintf("Request %s failed - %s.", c.URLMap[table], err))
 		return "", err
 	}
 	return string(data), nil
@@ -123,7 +133,9 @@ func (c AciConnection) getByQuery(table string) (string, error) {
 func (c AciConnection) getByClassQuery(class string, query string) (string, error) {
 	data, err := c.get(fmt.Sprintf("%s/api/class/%s.json%s", c.apicControllers[*c.activeController], class, query))
 	if err != nil {
-		log.Error(fmt.Sprintf("Class request %s failed - %s.", class, err))
+		log.WithFields(log.Fields{
+			"requestid": c.ctx.Value("requestid"),
+		}).Error(fmt.Sprintf("Class request %s failed - %s.", class, err))
 		return "", err
 	}
 	return string(data), nil
@@ -135,12 +147,11 @@ func (c AciConnection) get(url string) ([]byte, error) {
 	responseTime := time.Since(start).Seconds()
 	c.responseTime.WithLabelValues("monitor", "GET", strconv.Itoa(status)).Observe(responseTime)
 	log.WithFields(log.Fields{
-		"method": "GET",
-		"uri":    url,
-		//"endpoint":  endpoint,
-		"status": status,
-		"length": len(body),
-		//"requestid": requestid,
+		"method":    "GET",
+		"uri":       url,
+		"status":    status,
+		"length":    len(body),
+		"requestid": c.ctx.Value("requestid"),
 		"exec_time": time.Since(start).Microseconds(),
 		"system":    "monitor",
 	}).Info("api call monitor system")
@@ -151,7 +162,9 @@ func (c AciConnection) doGet(url string) ([]byte, int, error) {
 
 	req, err := http.NewRequest("GET", url, bytes.NewBuffer([]byte{}))
 	if err != nil {
-		log.Error(err)
+		log.WithFields(log.Fields{
+			"requestid": c.ctx.Value("requestid"),
+		}).Error(err)
 		return nil, 0, err
 	}
 	for k, v := range c.Headers {
@@ -169,7 +182,9 @@ func (c AciConnection) doGet(url string) ([]byte, int, error) {
 	if resp.StatusCode == http.StatusOK {
 		bodyBytes, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			log.Error(err)
+			log.WithFields(log.Fields{
+				"requestid": c.ctx.Value("requestid"),
+			}).Error(err)
 			return nil, resp.StatusCode, err
 		}
 
@@ -182,7 +197,9 @@ func (c AciConnection) doPostXML(url string, requestBody []byte) ([]byte, int, e
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(requestBody))
 	if err != nil {
-		log.Error(err)
+		log.WithFields(log.Fields{
+			"requestid": c.ctx.Value("requestid"),
+		}).Error(err)
 		return nil, 0, err
 	}
 
@@ -194,19 +211,19 @@ func (c AciConnection) doPostXML(url string, requestBody []byte) ([]byte, int, e
 	start := time.Now()
 	resp, err := c.Client.Do(req)
 	if err != nil {
-		log.Error(err)
+		log.WithFields(log.Fields{
+			"requestid": c.ctx.Value("requestid"),
+		}).Error(err)
 		return nil, 0, err
 	}
 	responseTime := time.Since(start).Seconds()
 	var status = resp.StatusCode
 	c.responseTime.WithLabelValues("monitor", "POST", strconv.Itoa(status)).Observe(responseTime)
 	log.WithFields(log.Fields{
-		"method": "POST",
-		"uri":    url,
-		//"endpoint":  endpoint,
-		"status": status,
-		//"length": len(),
-		//"requestid": requestid,
+		"method":    "POST",
+		"uri":       url,
+		"status":    status,
+		"requestid": c.ctx.Value("requestid"),
 		"exec_time": time.Since(start).Microseconds(),
 		"system":    "monitor",
 	}).Info("api call monitor system")
@@ -216,7 +233,9 @@ func (c AciConnection) doPostXML(url string, requestBody []byte) ([]byte, int, e
 	if resp.StatusCode == http.StatusOK {
 		bodyBytes, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			log.Error(err)
+			log.WithFields(log.Fields{
+				"requestid": c.ctx.Value("requestid"),
+			}).Error(err)
 			return nil, resp.StatusCode, err
 		}
 
