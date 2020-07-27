@@ -94,6 +94,10 @@ func Metrics2Prometheus(metrics []MetricDefinition, prefix string, commonLabels 
 			metricName = metricDefinition.Name + "_" + metricDefinition.Description.Unit
 		}
 
+		if metricDefinition.Description.Type == "counter" && metricDefinition.Description.Unit != "info" {
+			metricName = metricName + "_total"
+		}
+
 		if len(metricDefinition.Metrics) > 0 {
 			promFormat = promFormat + fmt.Sprintf("# HELP %s %s\n", metricName, metricDefinition.Description.Help)
 			if openmetrics {
