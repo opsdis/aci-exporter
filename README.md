@@ -1,4 +1,4 @@
-Promethues aci-exporter
+aci-exporter - An Cisco ACI Prometheus exporter
 ------------
 
 > This project is still in alpha and everything may change. If this exporter is useful or might be, please share
@@ -7,7 +7,10 @@ Promethues aci-exporter
 # Overview
 The aci-exporter provide metrics from a Cisco ACI fabric by using the ACI Rest API against ACPI controller(s).
 
-The exporter can return data both in the [Prometheus](https://prometheus.io/) and the [Openmetrics](https://openmetrics.io/) (v1) exposition format. 
+The exporter can return data both in the [Prometheus](https://prometheus.io/) and the 
+[Openmetrics](https://openmetrics.io/) (v1) exposition format. 
+
+The metrics that are exported is configured by definitions of a query. The query can be of any supported ACI class.
 
 # How to configure queries
  
@@ -17,6 +20,8 @@ The exporter provides two types of query configuration:
 - Compound queries - These are applicable where multiple queries result in single metric name with configured labels. 
 This is typical when counting different entities.
 
+There also some so called built-in queries. These are hard coded queries.
+ 
 > Example of queries can be found in the `example-config.yaml` file. 
 > Make sure you understand the ACI api before changing or creating new ones.
 
@@ -75,6 +80,9 @@ A fabric profile include the information specific to an ACI fabrics, like authen
 If there is multiple apic urls configured the exporter will use the first apic it can login to starting with the first
 in the list.
 
+All configuration properties can be set by using environment variables. The prefix is `ACI_EXPORTER_` and property 
+must be in uppercase. So to set the property `port` with an environment variable `ACI_EXPORTER_PORT=7121`. 
+
 # Openmetrics format
 The exporter support [openmetrics](https://openmetrics.io/) format. This is done by adding the following accept header to the request:
 
@@ -113,7 +121,7 @@ To run against the Cisco ACI sandbox:
 ```
     ./build/aci-exporter -config example-config.yaml
 ```
-> Make sure that the sanbox url and authentication is correct. Check out Cisco sandboxes on 
+> Make sure that the sandbox url and authentication is correct. Check out Cisco sandboxes on 
 > https://devnetsandbox.cisco.com/RM/Topology - "ACI Simulator AlwaysOn"
 
 ## Test
@@ -126,7 +134,7 @@ To test against the Cisco ACI sandbox:
 The target is a named fabric in the configuration file.
 
 There is also possible to run a limited number of queries by using the query parameter `queries`.
-This should be a comma separated list of the query names in the config file. It may also contain builtin query names.
+This should be a comma separated list of the query names in the config file. It may also contain built-in query names.
 
 ```
     curl -s 'http://localhost:8080/probe?target=cisco_sandbox&queries=node_health,faults'
@@ -134,7 +142,7 @@ This should be a comma separated list of the query names in the config file. It 
      
 # Prometheus configuration
 
-Please see file prometheus/prometheus.yml.
+Please see the example file prometheus/prometheus.yml.
 
 # Acknowledgements
 
@@ -146,4 +154,4 @@ This work is licensed under the GNU GENERAL PUBLIC LICENSE Version 3.
  
 # Todo 
 - Exclude configured queries for a specific fabric.
-- Add fabric specific configuration queries
+
