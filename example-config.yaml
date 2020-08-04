@@ -1,5 +1,5 @@
 # Exporter web port
-port: 8080
+port: 9643
 # Configuration file name default without postfix
 config: config
 # The prefix of the metrics

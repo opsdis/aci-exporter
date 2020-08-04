@@ -43,7 +43,7 @@ func SetDefaultValues() {
 	viper.AutomaticEnv()
 
 	// aci-exporter
-	viper.SetDefault("port", 8080)
+	viper.SetDefault("port", 9643)
 	viper.BindEnv("port")
 	viper.SetDefault("logfile", "")
 	viper.BindEnv("logfile")
