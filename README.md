@@ -128,7 +128,7 @@ To run against the Cisco ACI sandbox:
 To test against the Cisco ACI sandbox:
 
 ```
-    curl -s 'http://localhost:8080/probe?target=cisco_sandbox'
+    curl -s 'http://localhost:9643/probe?target=cisco_sandbox'
 ```
     
 The target is a named fabric in the configuration file.
@@ -137,7 +137,7 @@ There is also possible to run a limited number of queries by using the query par
 This should be a comma separated list of the query names in the config file. It may also contain built-in query names.
 
 ```
-    curl -s 'http://localhost:8080/probe?target=cisco_sandbox&queries=node_health,faults'
+    curl -s 'http://localhost:9643/probe?target=cisco_sandbox&queries=node_health,faults'
 ```
 
 # Internal metrics
