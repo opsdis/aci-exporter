@@ -13,8 +13,16 @@
 
 package main
 
-type Queries map[string]*ClassQuery
-type CompoundQueries map[string]*CompoundClassQuery
+type ClassQueries map[string]*ClassQuery
+type CompoundClassQueries map[string]*CompoundClassQuery
+
+// Builtin queries named and point to a function to execute
+type BuilitinQueries map[string]func() []MetricDefinition
+
+type AllQueries struct {
+	ClassQueries         ClassQueries
+	CompoundClassQueries CompoundClassQueries
+}
 
 // ClassQuery define the structure of configured queries
 type ClassQuery struct {

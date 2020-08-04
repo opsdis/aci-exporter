@@ -40,12 +40,15 @@ func SetDefaultValues() {
 
 	// All fields with . will be replaced with _ for ENV vars
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	viper.AutomaticEnv()
 
 	// aci-exporter
 	viper.SetDefault("port", 8080)
 	viper.BindEnv("port")
 	viper.SetDefault("logfile", "")
 	viper.BindEnv("logfile")
+	viper.SetDefault("logformat", "json")
+	viper.BindEnv("logformat")
 	viper.SetDefault("config", "config")
 	viper.BindEnv("config")
 	viper.SetDefault("prefix", "aci_")
