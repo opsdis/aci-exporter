@@ -30,11 +30,11 @@ import (
 )
 
 var responseTime = promauto.NewHistogramVec(prometheus.HistogramOpts{
-	Name:    MetricsPrefix + "response_time_from_mointor_system",
+	Name:    MetricsPrefix + "response_time_from_apic",
 	Help:    "Histogram of the time (in seconds) each request took to complete.",
-	Buckets: []float64{0.010, 0.020, 0.100, 0.200, 0.500, 1.0, 2.0},
+	Buckets: []float64{0.050, 0.100, 0.200, 0.500, 1.0, 2.0, 3.0},
 },
-	[]string{"type", "method", "status"},
+	[]string{"class", "method", "status"},
 )
 
 // AciConnection is the connection object
@@ -83,7 +83,7 @@ func newAciConnction(ctx context.Context, fabricConfig Fabric) *AciConnection {
 
 func (c AciConnection) login() error {
 	for i, controller := range c.fabricConfig.Apic {
-		_, status, err := c.doPostXML(fmt.Sprintf("%s%s", controller, c.URLMap["login"]),
+		_, status, err := c.doPostXML("login", fmt.Sprintf("%s%s", controller, c.URLMap["login"]),
 			[]byte(fmt.Sprintf("<aaaUser name=%s pwd=%s/>", c.fabricConfig.Username, c.fabricConfig.Password)))
 		if err != nil || status != 200 {
 
@@ -104,7 +104,7 @@ func (c AciConnection) login() error {
 }
 
 func (c AciConnection) logout() bool {
-	_, status, err := c.doPostXML(fmt.Sprintf("%s%s", c.fabricConfig.Apic[*c.activeController], c.URLMap["logout"]),
+	_, status, err := c.doPostXML("logout", fmt.Sprintf("%s%s", c.fabricConfig.Apic[*c.activeController], c.URLMap["logout"]),
 		[]byte(fmt.Sprintf("<aaaUser name=%s/>", c.fabricConfig.Username)))
 	if err != nil || status != 200 {
 		log.WithFields(log.Fields{
@@ -116,7 +116,7 @@ func (c AciConnection) logout() bool {
 }
 
 func (c AciConnection) getByQuery(table string) (string, error) {
-	data, err := c.get(fmt.Sprintf("%s%s", c.fabricConfig.Apic[*c.activeController], c.URLMap[table]))
+	data, err := c.get(table, fmt.Sprintf("%s%s", c.fabricConfig.Apic[*c.activeController], c.URLMap[table]))
 	if err != nil {
 		log.WithFields(log.Fields{
 			"requestid": c.ctx.Value("requestid"),
@@ -127,7 +127,7 @@ func (c AciConnection) getByQuery(table string) (string, error) {
 }
 
 func (c AciConnection) getByClassQuery(class string, query string) (string, error) {
-	data, err := c.get(fmt.Sprintf("%s/api/class/%s.json%s", c.fabricConfig.Apic[*c.activeController], class, query))
+	data, err := c.get(class, fmt.Sprintf("%s/api/class/%s.json%s", c.fabricConfig.Apic[*c.activeController], class, query))
 	if err != nil {
 		log.WithFields(log.Fields{
 			"requestid": c.ctx.Value("requestid"),
@@ -137,11 +137,11 @@ func (c AciConnection) getByClassQuery(class string, query string) (string, erro
 	return string(data), nil
 }
 
-func (c AciConnection) get(url string) ([]byte, error) {
+func (c AciConnection) get(label string, url string) ([]byte, error) {
 	start := time.Now()
 	body, status, err := c.doGet(url)
 	responseTime := time.Since(start).Seconds()
-	c.responseTime.WithLabelValues("monitor", "GET", strconv.Itoa(status)).Observe(responseTime)
+	c.responseTime.WithLabelValues(label, "GET", strconv.Itoa(status)).Observe(responseTime)
 	log.WithFields(log.Fields{
 		"method":    "GET",
 		"uri":       url,
@@ -189,7 +189,7 @@ func (c AciConnection) doGet(url string) ([]byte, int, error) {
 	return nil, resp.StatusCode, fmt.Errorf("ACI api returned %d", resp.StatusCode)
 }
 
-func (c AciConnection) doPostXML(url string, requestBody []byte) ([]byte, int, error) {
+func (c AciConnection) doPostXML(label string, url string, requestBody []byte) ([]byte, int, error) {
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(requestBody))
 	if err != nil {
@@ -214,7 +214,7 @@ func (c AciConnection) doPostXML(url string, requestBody []byte) ([]byte, int, e
 	}
 	responseTime := time.Since(start).Seconds()
 	var status = resp.StatusCode
-	c.responseTime.WithLabelValues("monitor", "POST", strconv.Itoa(status)).Observe(responseTime)
+	c.responseTime.WithLabelValues(label, "POST", strconv.Itoa(status)).Observe(responseTime)
 	log.WithFields(log.Fields{
 		"method":    "POST",
 		"uri":       url,

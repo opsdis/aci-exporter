@@ -86,6 +86,11 @@ func main() {
 	viper.AddConfigPath("/usr/local/etc/aci-exporter")
 	viper.AddConfigPath("/etc/aci-exporter")
 
+	if *usage {
+		flag.Usage()
+		os.Exit(0)
+	}
+
 	if *logFile != "" {
 		f, err := os.OpenFile(*logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
@@ -105,45 +110,49 @@ func main() {
 	// Find and read the config file
 	err := viper.ReadInConfig()
 	if err != nil {
-		log.Info("No configuration file found - use defaults")
+		log.Error("Configuration file not valid - ", err)
+		os.Exit(1)
 	}
 
 	var classQueries = ClassQueries{}
 	err = viper.UnmarshalKey("class_queries", &classQueries)
 	if err != nil {
-		log.Error("unable to decode into struct, %v", err)
+		log.Error("Unable to decode class_queries into struct - ", err)
+		os.Exit(1)
 	}
 
 	var compoundClassQueries = CompoundClassQueries{}
 	err = viper.UnmarshalKey("compound_queries", &compoundClassQueries)
 	if err != nil {
-		log.Error("unable to decode into struct, %v", err)
+
+		log.Error("Unable to decode compound_queries into struct - ", err)
+		os.Exit(1)
 	}
 
 	allQueries := AllQueries{ClassQueries: classQueries, CompoundClassQueries: compoundClassQueries}
 	handler := &HandlerInit{allQueries}
 
-	if *usage {
-		flag.Usage()
-		os.Exit(0)
-	}
-
 	// Create a Prometheus histogram for response time of the exporter
 	responseTime := promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    MetricsPrefix + "request_duration_seconds",
 		Help:    "Histogram of the time (in seconds) each request took to complete.",
-		Buckets: []float64{0.001, 0.005, 0.010, 0.020, 0.100, 0.200, 0.500},
+		Buckets: []float64{0.050, 0.100, 0.200, 0.500, 0.800, 1.00, 2.000, 3.000},
 	},
 		[]string{"url", "status"},
 	)
 
-	// Setup handler for backend provider mertics
-	//http.Handle("/probe", logcall(promMonitor(http.HandlerFunc(getMonitorMetrics), responseTime, "/probe")))
+	// Setup handler for aci destinations
 	http.Handle("/probe", logcall(promMonitor(http.HandlerFunc(handler.getMonitorMetrics), responseTime, "/probe")))
 	http.Handle("/alive", logcall(promMonitor(http.HandlerFunc(alive), responseTime, "/alive")))
 
 	// Setup handler for exporter metrics
-	http.Handle("/metrics", promhttp.Handler())
+	http.Handle("/metrics", promhttp.HandlerFor(
+		prometheus.DefaultGatherer,
+		promhttp.HandlerOpts{
+			// Opt into OpenMetrics to support exemplars.
+			EnableOpenMetrics: true,
+		},
+	))
 
 	log.Info(fmt.Sprintf("%s starting on port %d", ExporterName, viper.GetInt("port")))
 
