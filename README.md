@@ -139,7 +139,11 @@ This should be a comma separated list of the query names in the config file. It 
 ```
     curl -s 'http://localhost:8080/probe?target=cisco_sandbox&queries=node_health,faults'
 ```
-     
+
+# Internal metrics
+Internal metrics is exposed in Prometheus exposition format on the endpoint `/metrics`.
+To get the metrics in openmetrics format use the header `Accept: application/openmetrics-text`
+
 # Prometheus configuration
 
 Please see the example file prometheus/prometheus.yml.
