@@ -130,7 +130,7 @@ class_queries:
 
   fabric_health:
     class_name: fabricHealthTotal
-    query_parameter: '?query-target-filter=wcard(fabricHealthTotal.dn,"topology/.*/health"'
+    query_parameter: '?query-target-filter=wcard(fabricHealthTotal.dn,"topology/.*/health")'
     metrics:
       - name: fabric_health
         value_name: fabricHealthTotal.attributes.cur
