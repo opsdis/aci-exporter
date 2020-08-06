@@ -71,19 +71,19 @@ func (c HTTPClient) GetClient() *http.Client {
 	*/
 	//
 	var client = &http.Client{
+		Timeout: time.Duration(c.Timeout) * time.Second,
 		Transport: &http.Transport{
 			DialContext: (&net.Dialer{
-				Timeout:   time.Duration(c.Timeout) * time.Second,
+				//Timeout:   time.Duration(c.Timeout) * time.Second,
 				KeepAlive: time.Duration(c.Keepalive) * time.Second,
 			}).DialContext,
-			TLSHandshakeTimeout: time.Duration(c.Tlshandshaketimeout) * time.Second,
+			//TLSHandshakeTimeout: time.Duration(c.Tlshandshaketimeout) * time.Second,
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: c.InsecureHTTPS,
 				//RootCAs:            rootCAs,
 			},
-
-			ExpectContinueTimeout: 4 * time.Second,
-			ResponseHeaderTimeout: 3 * time.Second,
+			//ExpectContinueTimeout: 4 * time.Second,
+			//ResponseHeaderTimeout: 3 * time.Second,
 		},
 		Jar: c.cookieJar,
 	}

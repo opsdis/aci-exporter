@@ -10,7 +10,6 @@ httpclient:
   insecurehttps: true
   keepalive: 10
   timeout: 3
-  tlshandshaketimeout: 10
 
 # Profiles for different fabrics
 fabrics:
