@@ -32,7 +32,7 @@ import (
 var responseTime = promauto.NewHistogramVec(prometheus.HistogramOpts{
 	Name:    MetricsPrefix + "response_time_from_apic",
 	Help:    "Histogram of the time (in seconds) each request took to complete.",
-	Buckets: []float64{0.050, 0.100, 0.200, 0.500, 1.0, 2.0, 3.0},
+	Buckets: []float64{0.050, 0.100, 0.200, 0.500, 1.0, 2.0, 3.0, 10, 20, 30},
 },
 	[]string{"class", "method", "status"},
 )
