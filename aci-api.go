@@ -106,18 +106,29 @@ func (p aciAPI) CollectMetrics() (string, []MetricDefinition, error) {
 
 	// Hold all metrics created during the session
 	var metrics []MetricDefinition
+	ch := make(chan []MetricDefinition)
 
 	// Built-in
-	metrics = append(metrics, p.configuredBuiltInMetrics()...)
+	go p.configuredBuiltInMetrics(ch)
 
 	// Execute all configured class queries
-	metrics = append(metrics, p.configuredClassMetrics()...)
+	go p.configuredClassMetrics(ch)
 
 	// Execute all configured compound queries
-	metrics = append(metrics, p.configuredCompoundsMetrics()...)
+	go p.configuredCompoundsMetrics(ch)
 
-	metrics = append(metrics, *p.scrape(time.Since(start).Seconds()))
+	for i := 0; i < 3; i++ {
+		metrics = append(metrics, <-ch...)
+	}
 
+	end := time.Since(start)
+	metrics = append(metrics, *p.scrape(end.Seconds()))
+
+	log.WithFields(log.Fields{
+		"requestid": p.ctx.Value("requestid"),
+		"exec_time": end.Microseconds(),
+		"system":    "scrape",
+	}).Info("total scrape time ")
 	return fabricName, metrics, nil
 }
 
@@ -140,21 +151,27 @@ func (p aciAPI) scrape(seconds float64) *MetricDefinition {
 	return &metricDefinition
 }
 
-func (p aciAPI) configuredBuiltInMetrics() []MetricDefinition {
-	var metricDefinitions = []MetricDefinition{}
+func (p aciAPI) configuredBuiltInMetrics(chall chan []MetricDefinition) {
+	var metricDefinitions []MetricDefinition
+	ch := make(chan []MetricDefinition)
 	for _, fun := range p.confgBuiltInQueries {
-		metricDefinitions = append(metricDefinitions, fun()...)
+		go fun(ch)
 	}
-	return metricDefinitions
+
+	for range p.confgBuiltInQueries {
+		metricDefinitions = append(metricDefinitions, <-ch...)
+	}
+
+	chall <- metricDefinitions
 }
 
-func (p aciAPI) faults() []MetricDefinition {
+func (p aciAPI) faults(ch chan []MetricDefinition) {
 	data, err := p.connection.getByQuery("faults")
 	if err != nil {
 		log.WithFields(log.Fields{
 			"requestid": p.ctx.Value("requestid"),
 		}).Error("faults not supported", err)
-		return nil
+		ch <- nil
 	}
 
 	metricDefinitionFaults := MetricDefinition{}
@@ -247,7 +264,7 @@ func (p aciAPI) faults() []MetricDefinition {
 
 	metricDefinitionAcked.Metrics = metrics
 
-	return []MetricDefinition{metricDefinitionFaults, metricDefinitionAcked}
+	ch <- []MetricDefinition{metricDefinitionFaults, metricDefinitionAcked}
 }
 
 func (p aciAPI) getFabricName() (string, error) {
@@ -259,106 +276,133 @@ func (p aciAPI) getFabricName() (string, error) {
 	return gjson.Get(data, "imdata.0.infraCont.attributes.fbDmNm").Str, nil
 }
 
-func (p aciAPI) configuredCompoundsMetrics() []MetricDefinition {
+func (p aciAPI) configuredCompoundsMetrics(chall chan []MetricDefinition) {
 	var metricDefinitions []MetricDefinition
+	ch := make(chan []MetricDefinition)
 	for _, v := range p.configAggregationQueries {
-		metricDefinition := MetricDefinition{}
-		metricDefinition.Name = v.Metrics[0].Name
-		metricDefinition.Description.Help = v.Metrics[0].Help
-		metricDefinition.Description.Type = v.Metrics[0].Type
-		metricDefinition.Description.Unit = v.Metrics[0].Unit
-
-		var metrics []Metric
-		for _, classlabel := range v.ClassNames {
-			metric := Metric{}
-			data, _ := p.connection.getByClassQuery(classlabel.Class, classlabel.QueryParameter)
-			if classlabel.ValueName == "" {
-				metric.Value = p.toFloat(gjson.Get(data, fmt.Sprintf("imdata.0.%s", v.Metrics[0].ValueName)).Str)
-			} else {
-				metric.Value = p.toFloat(gjson.Get(data, fmt.Sprintf("imdata.0.%s", classlabel.ValueName)).Str)
-			}
-			metric.Labels = make(map[string]string)
-			metric.Labels[v.LabelName] = classlabel.Label
-			metrics = append(metrics, metric)
-		}
-		metricDefinition.Metrics = metrics
-		metricDefinitions = append(metricDefinitions, metricDefinition)
+		go p.getCompoundMetrics(ch, v)
 	}
-	return metricDefinitions
+
+	for range p.configAggregationQueries {
+		metricDefinitions = append(metricDefinitions, <-ch...)
+	}
+
+	chall <- metricDefinitions
 }
 
-func (p aciAPI) configuredClassMetrics() []MetricDefinition {
+func (p aciAPI) getCompoundMetrics(ch chan []MetricDefinition, v *CompoundClassQuery) {
 	var metricDefinitions []MetricDefinition
+	metricDefinition := MetricDefinition{}
+	metricDefinition.Name = v.Metrics[0].Name
+	metricDefinition.Description.Help = v.Metrics[0].Help
+	metricDefinition.Description.Type = v.Metrics[0].Type
+	metricDefinition.Description.Unit = v.Metrics[0].Unit
+
+	var metrics []Metric
+	for _, classlabel := range v.ClassNames {
+		metric := Metric{}
+		data, _ := p.connection.getByClassQuery(classlabel.Class, classlabel.QueryParameter)
+		if classlabel.ValueName == "" {
+			metric.Value = p.toFloat(gjson.Get(data, fmt.Sprintf("imdata.0.%s", v.Metrics[0].ValueName)).Str)
+		} else {
+			metric.Value = p.toFloat(gjson.Get(data, fmt.Sprintf("imdata.0.%s", classlabel.ValueName)).Str)
+		}
+		metric.Labels = make(map[string]string)
+		metric.Labels[v.LabelName] = classlabel.Label
+		metrics = append(metrics, metric)
+	}
+	metricDefinition.Metrics = metrics
+	metricDefinitions = append(metricDefinitions, metricDefinition)
+	ch <- metricDefinitions
+}
+
+func (p aciAPI) configuredClassMetrics(chall chan []MetricDefinition) {
+	var metricDefinitions []MetricDefinition
+	ch := make(chan []MetricDefinition)
 	for _, v := range p.configQueries {
-
-		data, err := p.connection.getByClassQuery(v.ClassName, v.QueryParameter)
-
-		if err != nil {
-			log.WithFields(log.Fields{
-				"requestid": p.ctx.Value("requestid"),
-			}).Error(fmt.Sprintf("%s not supported", v.ClassName), err)
-			return nil
-		}
-
-		// For each metrics in the config
-		for _, mv := range v.Metrics {
-			metricDefinition := MetricDefinition{}
-			metricDefinition.Name = mv.Name
-			metricDefinition.Description.Help = mv.Help
-			metricDefinition.Description.Type = mv.Type
-			metricDefinition.Description.Unit = mv.Unit
-
-			var metrics []Metric
-
-			result := gjson.Get(data, "imdata")
-
-			result.ForEach(func(key, value gjson.Result) bool {
-
-				metric := Metric{}
-
-				// find and parse all labels
-				metric.Labels = make(map[string]string)
-				for _, lv := range v.Labels {
-					re := regexpcache.MustCompile(lv.Regex)
-					match := re.FindStringSubmatch(gjson.Get(value.String(), lv.PropertyName).Str)
-					if len(match) != 0 {
-						for i, name := range re.SubexpNames() {
-							if i != 0 && name != "" {
-								metric.Labels[name] = match[i]
-							}
-						}
-					}
-				}
-
-				metric.Value = p.toFloat(gjson.Get(value.String(), mv.ValueName).Str)
-
-				// Post calculation on the value
-				if mv.ValueCalculation != "" {
-					expression, _ := govaluate.NewEvaluableExpression(mv.ValueCalculation)
-					parameters := make(map[string]interface{}, 8)
-					parameters["value"] = p.toFloat(gjson.Get(value.String(), mv.ValueName).Str)
-					result, _ := expression.Evaluate(parameters)
-					metric.Value = result.(float64)
-				}
-
-				// Transform on string value table to float
-				if len(mv.ValueTransform) != 0 {
-					if val, ok := mv.ValueTransform[gjson.Get(value.String(), mv.ValueName).Str]; ok {
-						metric.Value = val
-					}
-				}
-
-				metrics = append(metrics, metric)
-				return true
-			})
-
-			metricDefinition.Metrics = metrics
-
-			metricDefinitions = append(metricDefinitions, metricDefinition)
-		}
+		go p.getClassMetrics(ch, v)
 	}
 
-	return metricDefinitions
+	for range p.configQueries {
+		metricDefinitions = append(metricDefinitions, <-ch...)
+	}
+
+	chall <- metricDefinitions
+}
+
+func (p aciAPI) getClassMetrics(ch chan []MetricDefinition, v *ClassQuery) {
+	var metricDefinitions []MetricDefinition
+	data, err := p.connection.getByClassQuery(v.ClassName, v.QueryParameter)
+
+	if err != nil {
+		log.WithFields(log.Fields{
+			"requestid": p.ctx.Value("requestid"),
+		}).Error(fmt.Sprintf("%s not supported", v.ClassName), err)
+		ch <- nil
+	}
+
+	// For each metrics in the config
+	for _, mv := range v.Metrics {
+		metricDefinition := MetricDefinition{}
+		metricDefinition.Name = mv.Name
+		metricDefinition.Description.Help = mv.Help
+		metricDefinition.Description.Type = mv.Type
+		metricDefinition.Description.Unit = mv.Unit
+
+		var metrics []Metric
+
+		metrics = p.extractClassQueriesData(data, v, mv, metrics)
+
+		metricDefinition.Metrics = metrics
+
+		metricDefinitions = append(metricDefinitions, metricDefinition)
+	}
+	ch <- metricDefinitions
+}
+
+func (p aciAPI) extractClassQueriesData(data string, v *ClassQuery, mv ConfigMetric, metrics []Metric) []Metric {
+	result := gjson.Get(data, "imdata")
+
+	result.ForEach(func(key, value gjson.Result) bool {
+
+		metric := Metric{}
+
+		// find and parse all labels
+		metric.Labels = make(map[string]string)
+		for _, lv := range v.Labels {
+			re := regexpcache.MustCompile(lv.Regex)
+			match := re.FindStringSubmatch(gjson.Get(value.String(), lv.PropertyName).Str)
+			if len(match) != 0 {
+				for i, name := range re.SubexpNames() {
+					if i != 0 && name != "" {
+						metric.Labels[name] = match[i]
+					}
+				}
+			}
+		}
+
+		metric.Value = p.toFloat(gjson.Get(value.String(), mv.ValueName).Str)
+
+		// Post calculation on the value
+		if mv.ValueCalculation != "" {
+			expression, _ := govaluate.NewEvaluableExpression(mv.ValueCalculation)
+			parameters := make(map[string]interface{}, 8)
+			parameters["value"] = p.toFloat(gjson.Get(value.String(), mv.ValueName).Str)
+			result, _ := expression.Evaluate(parameters)
+			metric.Value = result.(float64)
+		}
+
+		// Transform on string value table to float
+		if len(mv.ValueTransform) != 0 {
+			if val, ok := mv.ValueTransform[gjson.Get(value.String(), mv.ValueName).Str]; ok {
+				metric.Value = val
+			}
+		}
+
+		metrics = append(metrics, metric)
+		return true
+	})
+	return metrics
 }
 
 func (p aciAPI) toRatio(value string) float64 {
