@@ -195,9 +195,11 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 
 	fabricConfig := Fabric{Username: username, Password: password, Apic: apicControllers}
 
-	api := *newAciAPI(r.Context(), fabricConfig, h.AllQueries, queries)
+	ctx := r.Context()
+	ctx = context.WithValue(ctx, "fabric", fabric)
+	api := *newAciAPI(ctx, fabricConfig, h.AllQueries, queries)
 
-	fabricName, metrics, err := api.CollectMetrics()
+	aciName, metrics, err := api.CollectMetrics()
 
 	if err != nil {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
@@ -207,7 +209,8 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 		lrw.WriteHeader(503)
 	} else {
 		commonLabels := make(map[string]string)
-		commonLabels["aci"] = fabricName
+		commonLabels["aci"] = aciName
+		commonLabels["fabric"] = fabric
 
 		var bodyText = Metrics2Prometheus(metrics, api.metricPrefix, commonLabels, openmetrics)
 		if openmetrics {
@@ -254,9 +257,9 @@ func logcall(next http.Handler) http.Handler {
 
 		w.Header().Set("Content-Length", strconv.Itoa(lrw.length))
 		log.WithFields(log.Fields{
-			"method": r.Method,
-			"uri":    r.RequestURI,
-			//"endpoint":  endpoint,
+			"method":    r.Method,
+			"uri":       r.RequestURI,
+			"fabric":    r.URL.Query().Get("target"),
 			"status":    lrw.statusCode,
 			"length":    lrw.length,
 			"requestid": requestid,

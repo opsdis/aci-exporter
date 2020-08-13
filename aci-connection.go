@@ -34,7 +34,7 @@ var responseTime = promauto.NewHistogramVec(prometheus.HistogramOpts{
 	Help:    "Histogram of the time (in seconds) each request took to complete.",
 	Buckets: []float64{0.050, 0.100, 0.200, 0.500, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0},
 },
-	[]string{"class", "method", "status"},
+	[]string{"fabric", "class", "method", "status"},
 )
 
 // AciConnection is the connection object
@@ -68,7 +68,7 @@ func newAciConnction(ctx context.Context, fabricConfig Fabric) *AciConnection {
 	urlMap["login"] = "/api/mo/aaaLogin.xml"
 	urlMap["logout"] = "/api/mo/aaaLogout.xml"
 	urlMap["faults"] = "/api/class/faultCountsWithDetails.json"
-	urlMap["fabric_name"] = "/api/mo/topology/pod-1/node-1/av.json"
+	urlMap["aci_name"] = "/api/mo/topology/pod-1/node-1/av.json"
 
 	return &AciConnection{
 		ctx:              ctx,
@@ -89,11 +89,15 @@ func (c AciConnection) login() error {
 
 			err = fmt.Errorf("failed to login to %s, try next apic", controller)
 
-			log.Error(err)
+			log.WithFields(log.Fields{
+				"requestid": c.ctx.Value("requestid"),
+				"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
+			}).Error(err)
 		} else {
 			*c.activeController = i
 			log.WithFields(log.Fields{
 				"requestid": c.ctx.Value("requestid"),
+				"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
 			}).Info("Using apic %s", controller)
 
 			return nil
@@ -109,6 +113,7 @@ func (c AciConnection) logout() bool {
 	if err != nil || status != 200 {
 		log.WithFields(log.Fields{
 			"requestid": c.ctx.Value("requestid"),
+			"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
 		}).Error(err)
 		return false
 	}
@@ -120,6 +125,7 @@ func (c AciConnection) getByQuery(table string) (string, error) {
 	if err != nil {
 		log.WithFields(log.Fields{
 			"requestid": c.ctx.Value("requestid"),
+			"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
 		}).Error(fmt.Sprintf("Request %s failed - %s.", c.URLMap[table], err))
 		return "", err
 	}
@@ -131,6 +137,7 @@ func (c AciConnection) getByClassQuery(class string, query string) (string, erro
 	if err != nil {
 		log.WithFields(log.Fields{
 			"requestid": c.ctx.Value("requestid"),
+			"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
 		}).Error(fmt.Sprintf("Class request %s failed - %s.", class, err))
 		return "", err
 	}
@@ -141,7 +148,12 @@ func (c AciConnection) get(label string, url string) ([]byte, error) {
 	start := time.Now()
 	body, status, err := c.doGet(url)
 	responseTime := time.Since(start).Seconds()
-	c.responseTime.WithLabelValues(label, "GET", strconv.Itoa(status)).Observe(responseTime)
+	c.responseTime.With(prometheus.Labels{
+		"fabric": fmt.Sprintf("%v", c.ctx.Value("fabric")),
+		"class":  label,
+		"method": "GET",
+		"status": strconv.Itoa(status)}).Observe(responseTime)
+
 	log.WithFields(log.Fields{
 		"method":    "GET",
 		"uri":       url,
@@ -149,8 +161,8 @@ func (c AciConnection) get(label string, url string) ([]byte, error) {
 		"length":    len(body),
 		"requestid": c.ctx.Value("requestid"),
 		"exec_time": time.Since(start).Microseconds(),
-		"system":    "monitor",
-	}).Info("api call monitor system")
+		"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
+	}).Info("api call fabric")
 	return body, err
 }
 
@@ -160,6 +172,7 @@ func (c AciConnection) doGet(url string) ([]byte, int, error) {
 	if err != nil {
 		log.WithFields(log.Fields{
 			"requestid": c.ctx.Value("requestid"),
+			"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
 		}).Error(err)
 		return nil, 0, err
 	}
@@ -169,7 +182,10 @@ func (c AciConnection) doGet(url string) ([]byte, int, error) {
 
 	resp, err := c.Client.Do(req)
 	if err != nil {
-		log.Error(err)
+		log.WithFields(log.Fields{
+			"requestid": c.ctx.Value("requestid"),
+			"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
+		}).Error(err)
 		return nil, 0, err
 	}
 
@@ -180,6 +196,7 @@ func (c AciConnection) doGet(url string) ([]byte, int, error) {
 		if err != nil {
 			log.WithFields(log.Fields{
 				"requestid": c.ctx.Value("requestid"),
+				"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
 			}).Error(err)
 			return nil, resp.StatusCode, err
 		}
@@ -195,6 +212,7 @@ func (c AciConnection) doPostXML(label string, url string, requestBody []byte) (
 	if err != nil {
 		log.WithFields(log.Fields{
 			"requestid": c.ctx.Value("requestid"),
+			"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
 		}).Error(err)
 		return nil, 0, err
 	}
@@ -209,20 +227,27 @@ func (c AciConnection) doPostXML(label string, url string, requestBody []byte) (
 	if err != nil {
 		log.WithFields(log.Fields{
 			"requestid": c.ctx.Value("requestid"),
+			"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
 		}).Error(err)
 		return nil, 0, err
 	}
 	responseTime := time.Since(start).Seconds()
 	var status = resp.StatusCode
-	c.responseTime.WithLabelValues(label, "POST", strconv.Itoa(status)).Observe(responseTime)
+
+	c.responseTime.With(prometheus.Labels{
+		"fabric": fmt.Sprintf("%v", c.ctx.Value("fabric")),
+		"class":  label,
+		"method": "POST",
+		"status": strconv.Itoa(status)}).Observe(responseTime)
+
 	log.WithFields(log.Fields{
 		"method":    "POST",
 		"uri":       url,
 		"status":    status,
 		"requestid": c.ctx.Value("requestid"),
 		"exec_time": time.Since(start).Microseconds(),
-		"system":    "monitor",
-	}).Info("api call monitor system")
+		"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
+	}).Info("api call fabric")
 
 	defer resp.Body.Close()
 
@@ -231,6 +256,7 @@ func (c AciConnection) doPostXML(label string, url string, requestBody []byte) (
 		if err != nil {
 			log.WithFields(log.Fields{
 				"requestid": c.ctx.Value("requestid"),
+				"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
 			}).Error(err)
 			return nil, resp.StatusCode, err
 		}

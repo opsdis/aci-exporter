@@ -61,14 +61,20 @@ The result is:
 ```
 # HELP nodes Returns the current count of nodes
 # TYPE nodes gauge
-aci_nodes{aci="ACI Fabric1",node="spine"} 3
-aci_nodes{aci="ACI Fabric1",node="leaf"} 7
-aci_nodes{aci="ACI Fabric1",node="controller"} 1
+aci_nodes{aci="ACI Fabric1",fabric="cisco_sandbox",node="spine"} 3
+aci_nodes{aci="ACI Fabric1",fabric="cisco_sandbox",node="leaf"} 7
+aci_nodes{aci="ACI Fabric1",fabric="cisco_sandbox",node="controller"} 1
 ```
 
 ## Built-in queries  
 The export has some standard metric "built-in". These are:
 - `faults`, labeled by severity and type of fault, like operational, configuration and environment faults.
+
+# Default labels
+The aci-exporter will attach the following labels to all metrics
+
+- `aci` the name of the ACI. This is done by an API call.
+- `fabric` the name of the configuration.
 
 # Configuration
 

@@ -99,7 +99,7 @@ func (p aciAPI) CollectMetrics() (string, []MetricDefinition, error) {
 		return "", nil, err
 	}
 
-	fabricName, err := p.getFabricName()
+	aciName, err := p.getAciName()
 	if err != nil {
 		return "", nil, err
 	}
@@ -127,9 +127,9 @@ func (p aciAPI) CollectMetrics() (string, []MetricDefinition, error) {
 	log.WithFields(log.Fields{
 		"requestid": p.ctx.Value("requestid"),
 		"exec_time": end.Microseconds(),
-		"system":    "scrape",
+		"fabric":    fmt.Sprintf("%v", p.ctx.Value("fabric")),
 	}).Info("total scrape time ")
-	return fabricName, metrics, nil
+	return aciName, metrics, nil
 }
 
 func (p aciAPI) scrape(seconds float64) *MetricDefinition {
@@ -170,6 +170,7 @@ func (p aciAPI) faults(ch chan []MetricDefinition) {
 	if err != nil {
 		log.WithFields(log.Fields{
 			"requestid": p.ctx.Value("requestid"),
+			"fabric":    fmt.Sprintf("%v", p.ctx.Value("fabric")),
 		}).Error("faults not supported", err)
 		ch <- nil
 	}
@@ -267,8 +268,8 @@ func (p aciAPI) faults(ch chan []MetricDefinition) {
 	ch <- []MetricDefinition{metricDefinitionFaults, metricDefinitionAcked}
 }
 
-func (p aciAPI) getFabricName() (string, error) {
-	data, err := p.connection.getByQuery("fabric_name")
+func (p aciAPI) getAciName() (string, error) {
+	data, err := p.connection.getByQuery("aci_name")
 	if err != nil {
 		return "", err
 	}
@@ -337,6 +338,7 @@ func (p aciAPI) getClassMetrics(ch chan []MetricDefinition, v *ClassQuery) {
 	if err != nil {
 		log.WithFields(log.Fields{
 			"requestid": p.ctx.Value("requestid"),
+			"fabric":    fmt.Sprintf("%v", p.ctx.Value("fabric")),
 		}).Error(fmt.Sprintf("%s not supported", v.ClassName), err)
 		ch <- nil
 	}
