@@ -1,5 +1,6 @@
 aci-exporter - An Cisco ACI Prometheus exporter
 ------------
+[![published](https://static.production.devnetcloud.com/codeexchange/assets/images/devnet-published.svg)](https://developer.cisco.com/codeexchange/github/repo/opsdis/aci-exporter)
 
 > This project is still in alpha and everything may change. If this exporter is useful or might be, please share
 > your experience and/or improvements.  
