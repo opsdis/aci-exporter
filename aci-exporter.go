@@ -129,7 +129,19 @@ func main() {
 		os.Exit(1)
 	}
 
-	allQueries := AllQueries{ClassQueries: classQueries, CompoundClassQueries: compoundClassQueries}
+	var groupClassQueries = GroupClassQueries{}
+	err = viper.UnmarshalKey("qroup_class_queries", &groupClassQueries)
+	if err != nil {
+
+		log.Error("Unable to decode compound_queries into struct - ", err)
+		os.Exit(1)
+	}
+	allQueries := AllQueries{
+		ClassQueries:         classQueries,
+		CompoundClassQueries: compoundClassQueries,
+		GroupClassQueries:    groupClassQueries,
+	}
+
 	handler := &HandlerInit{allQueries}
 
 	// Create a Prometheus histogram for response time of the exporter

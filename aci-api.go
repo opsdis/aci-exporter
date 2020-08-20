@@ -34,6 +34,8 @@ func newAciAPI(ctx context.Context, fabricConfig Fabric, configQueries AllQuerie
 		// If there are some queries named
 		executeQueries.ClassQueries = ClassQueries{}
 		executeQueries.CompoundClassQueries = CompoundClassQueries{}
+		executeQueries.GroupClassQueries = GroupClassQueries{}
+		// Find the named queries for the different type
 		for _, queryName := range queryArray {
 			for configQueryName := range configQueries.ClassQueries {
 				if queryName == configQueryName {
@@ -45,6 +47,11 @@ func newAciAPI(ctx context.Context, fabricConfig Fabric, configQueries AllQuerie
 					executeQueries.CompoundClassQueries[k] = configQueries.CompoundClassQueries[k]
 				}
 			}
+			for k := range configQueries.GroupClassQueries {
+				if queryName == k {
+					executeQueries.GroupClassQueries[k] = configQueries.GroupClassQueries[k]
+				}
+			}
 		}
 	} else {
 		// Use all configured
@@ -52,12 +59,13 @@ func newAciAPI(ctx context.Context, fabricConfig Fabric, configQueries AllQuerie
 	}
 
 	api := &aciAPI{
-		ctx:                      ctx,
-		connection:               *newAciConnction(ctx, fabricConfig),
-		metricPrefix:             viper.GetString("prefix"),
-		configQueries:            executeQueries.ClassQueries,
-		configAggregationQueries: executeQueries.CompoundClassQueries,
-		confgBuiltInQueries:      BuilitinQueries{},
+		ctx:                   ctx,
+		connection:            *newAciConnction(ctx, fabricConfig),
+		metricPrefix:          viper.GetString("prefix"),
+		configQueries:         executeQueries.ClassQueries,
+		configCompoundQueries: executeQueries.CompoundClassQueries,
+		configGroupQueries:    executeQueries.GroupClassQueries,
+		confgBuiltInQueries:   BuilitinQueries{},
 	}
 
 	// Make sure all built in queries are handled
@@ -79,12 +87,13 @@ func newAciAPI(ctx context.Context, fabricConfig Fabric, configQueries AllQuerie
 }
 
 type aciAPI struct {
-	ctx                      context.Context
-	connection               AciConnection
-	metricPrefix             string
-	configQueries            ClassQueries
-	configAggregationQueries CompoundClassQueries
-	confgBuiltInQueries      BuilitinQueries
+	ctx                   context.Context
+	connection            AciConnection
+	metricPrefix          string
+	configQueries         ClassQueries
+	configCompoundQueries CompoundClassQueries
+	configGroupQueries    GroupClassQueries
+	confgBuiltInQueries   BuilitinQueries
 }
 
 // CollectMetrics Gather all aci metrics and return name of the aci fabric, slice of metrics and status of
@@ -117,7 +126,10 @@ func (p aciAPI) CollectMetrics() (string, []MetricDefinition, error) {
 	// Execute all configured compound queries
 	go p.configuredCompoundsMetrics(ch)
 
-	for i := 0; i < 3; i++ {
+	// Execute all configured group queries
+	go p.configuredGroupMetrics(ch)
+
+	for i := 0; i < 4; i++ {
 		metrics = append(metrics, <-ch...)
 	}
 
@@ -280,11 +292,11 @@ func (p aciAPI) getAciName() (string, error) {
 func (p aciAPI) configuredCompoundsMetrics(chall chan []MetricDefinition) {
 	var metricDefinitions []MetricDefinition
 	ch := make(chan []MetricDefinition)
-	for _, v := range p.configAggregationQueries {
+	for _, v := range p.configCompoundQueries {
 		go p.getCompoundMetrics(ch, v)
 	}
 
-	for range p.configAggregationQueries {
+	for range p.configCompoundQueries {
 		metricDefinitions = append(metricDefinitions, <-ch...)
 	}
 
@@ -317,6 +329,21 @@ func (p aciAPI) getCompoundMetrics(ch chan []MetricDefinition, v *CompoundClassQ
 	ch <- metricDefinitions
 }
 
+func (p aciAPI) configuredGroupMetrics(chall chan []MetricDefinition) {
+	var metricDefinitions []MetricDefinition
+	ch := make(chan []MetricDefinition)
+
+	for _, v := range p.configGroupQueries {
+		go p.getGroupClassMetrics(ch, *v)
+	}
+
+	for range p.configGroupQueries {
+		metricDefinitions = append(metricDefinitions, <-ch...)
+	}
+
+	chall <- metricDefinitions
+}
+
 func (p aciAPI) configuredClassMetrics(chall chan []MetricDefinition) {
 	var metricDefinitions []MetricDefinition
 	ch := make(chan []MetricDefinition)
@@ -330,8 +357,59 @@ func (p aciAPI) configuredClassMetrics(chall chan []MetricDefinition) {
 
 	chall <- metricDefinitions
 }
+func (p aciAPI) getGroupClassMetrics(ch chan []MetricDefinition, v GroupClassQuery) {
+	var metricDefinitions []MetricDefinition
+
+	metricDefinition := MetricDefinition{}
+
+	metricDefinition.Name = v.Name
+	metricDefinition.Description.Help = v.Help
+	metricDefinition.Description.Type = v.Type
+	metricDefinition.Description.Unit = v.Unit
+
+	/*
+		labels := make(map[string]string)
+		for _,v := range v.StaticLabels {
+			labels[v.Key] = v.Value
+		}
+	*/
+	var metrics []Metric
+	metricDefinition.Metrics = metrics
+
+	chsub := make(chan []MetricDefinition)
+
+	for _, query := range v.Queries {
+		// Need copy by value
+		queryValue := ClassQuery{
+			ClassName:      query.ClassName,
+			QueryParameter: query.QueryParameter,
+			Metrics:        query.Metrics,
+			Labels:         query.Labels,
+			StaticLabels:   query.StaticLabels,
+		}
+
+		go p.getClassMetrics(chsub, &queryValue)
+	}
+
+	for range v.Queries {
+		md := <-chsub
+		for _, vx := range md {
+			for _, vy := range vx.Metrics {
+				// Add any static labels
+				for _, v := range v.StaticLabels {
+					vy.Labels[v.Key] = v.Value
+				}
+			}
+			metricDefinition.Metrics = append(metricDefinition.Metrics, vx.Metrics...)
+		}
+	}
+
+	metricDefinitions = append(metricDefinitions, metricDefinition)
+	ch <- metricDefinitions
+}
 
 func (p aciAPI) getClassMetrics(ch chan []MetricDefinition, v *ClassQuery) {
+
 	var metricDefinitions []MetricDefinition
 	data, err := p.connection.getByClassQuery(v.ClassName, v.QueryParameter)
 
@@ -381,6 +459,10 @@ func (p aciAPI) extractClassQueriesData(data string, v *ClassQuery, mv ConfigMet
 					}
 				}
 			}
+		}
+		// Add static labels
+		for _, slv := range v.StaticLabels {
+			metric.Labels[slv.Key] = slv.Value
 		}
 
 		metric.Value = p.toFloat(gjson.Get(value.String(), mv.ValueName).Str)
