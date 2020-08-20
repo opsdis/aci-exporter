@@ -51,8 +51,12 @@ whole property value.
         regex: "^(?P<state>.*)"
 ```
 
+## Group class queries
+Group queries group a number of class queries under a single metrics name, unit, help and type. Both individual 
+and common labels are supported.
+
 ## Compound queries 
-The compound queries (better name?) is used when a single metrics is "compounded" by different queries. In the 
+The compound queries is used when a single metrics is "compounded" by different queries. In the 
 `example-config.yaml` file is an example where the number of spines, leafs and controllers are counted. They will
 all be of the metric `nodes` but require 3 different queries. Since no labels can be extracted from the response 
 the label name and label value is configured.
@@ -70,6 +74,21 @@ aci_nodes{aci="ACI Fabric1",fabric="cisco_sandbox",node="controller"} 1
 The export has some standard metric "built-in". These are:
 - `faults`, labeled by severity and type of fault, like operational, configuration and environment faults.
 
+# Labels
+Since all queries are configurable metrics name and label definitions are up to the person doing the configuration.
+The recommendation is to follow the best practices for [Promethues](https://prometheus.io/docs/practices/naming/).
+
+To make labels useful in the ACI context we think a good recommendation is to use the structure and naming in the 
+ACI class model. 
+Use the label name `class` when we relate to names from the class model like `fvTenant`and 
+`fvBD`, where `fv` is the package and `Tenant` is the class name. 
+If we want to have a label name for a specific instance of the class we use the class name in lower case like `tenant` 
+and `bd`, like `tenant="opsdis"`   
+
+For different identities like pods and nodes we use the type+id like `podid` and `nodeid`. So for node 201 the label is
+`nodeid="201"`.
+
+
 # Default labels
 The aci-exporter will attach the following labels to all metrics
 
@@ -82,6 +101,8 @@ The aci-exporter will attach the following labels to all metrics
 
 All attributes in the configuration has default values, except for the fabric and the different query sections.
 A fabric profile include the information specific to an ACI fabrics, like authentication and apic(s) url.
+
+> The user need to have admin read-only rights in the domain `All` to allow all kinds of queries.
 
 If there is multiple apic urls configured the exporter will use the first apic it can login to starting with the first
 in the list.

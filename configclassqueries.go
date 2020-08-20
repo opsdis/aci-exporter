@@ -15,6 +15,7 @@ package main
 
 type ClassQueries map[string]*ClassQuery
 type CompoundClassQueries map[string]*CompoundClassQuery
+type GroupClassQueries map[string]*GroupClassQuery
 
 // Builtin queries named and point to a function to execute
 type BuilitinQueries map[string]func(chan []MetricDefinition)
@@ -22,6 +23,16 @@ type BuilitinQueries map[string]func(chan []MetricDefinition)
 type AllQueries struct {
 	ClassQueries         ClassQueries
 	CompoundClassQueries CompoundClassQueries
+	GroupClassQueries    GroupClassQueries
+}
+
+type GroupClassQuery struct {
+	Name         string         `mapstructure:"name"`
+	Unit         string         `mapstructure:"unit"`
+	Type         string         `mapstructure:"type"`
+	Help         string         `mapstructure:"help"`
+	Queries      []ClassQuery   `string:"queries"`
+	StaticLabels []StaticLabels `string:"staticlabels"`
 }
 
 // ClassQuery define the structure of configured queries
@@ -30,6 +41,7 @@ type ClassQuery struct {
 	QueryParameter string         `mapstructure:"query_parameter"`
 	Metrics        []ConfigMetric `string:"metrics"`
 	Labels         []ConfigLabels `string:"labels"`
+	StaticLabels   []StaticLabels `string:"staticlabels"`
 }
 
 // ConfigMetric define the configuration of metric
@@ -47,6 +59,11 @@ type ConfigMetric struct {
 type ConfigLabels struct {
 	PropertyName string `mapstructure:"property_name"`
 	Regex        string `mapstructure:"regex"`
+}
+
+type StaticLabels struct {
+	Key   string `mapstructure:"key"`
+	Value string `mapstructure:"value"`
 }
 
 // CompoundClassQuery define aggregation by common label, typical used for counting

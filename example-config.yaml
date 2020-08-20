@@ -1,15 +1,9 @@
-# Exporter web port
+# Exporter port
 port: 9643
 # Configuration file name default without postfix
 config: config
 # The prefix of the metrics
 prefix: aci_
-
-# Http client settings used to access the apic
-httpclient:
-  insecurehttps: true
-  keepalive: 10
-  timeout: 3
 
 # Profiles for different fabrics
 fabrics:
@@ -31,14 +25,43 @@ fabrics:
       - https://apic1
       - https://apic2
 
-# The section define class based queries that should be ran by all profiles
+# Http client settings used to access apic
+httpclient:
+  insecurehttps: true
+  keepalive: 120
+  timeout: 30
+
+
+# The query sections define queries that should be ran by all profiles
+
+#
+# ATTENTION
+# All queries might not work in your environment depending on the permission your API user is granted or if you
+# running against a real or simulated API environment.
+#
+
+# Class queries
 class_queries:
+
   # Just some unique name
   interface_info:
     # The ACI class to query
     class_name: ethpmPhysIf
     metrics:
       # The name of the metrics without prefix and unit
+      - name: interface_oper_speed
+        value_name: ethpmPhysIf.attributes.operSpeed
+        unit: bps
+        type: gauge
+        help: The current operational speed of the interface, in bits per second.
+        value_transform:
+          'unknown':            0
+          '100M':       100000000
+          '1G':        1000000000
+          '10G':      10000000000
+          '25G':      25000000000
+          '40G':      40000000000
+          '100G':    100000000000
       - name: interface_oper_state
         # The field in the json that is used as the metric value, qualified path (gjson) under imdata
         value_name: ethpmPhysIf.attributes.operSt
@@ -59,46 +82,178 @@ class_queries:
         # The regex where the string enclosed in the P<xyz> is the label name
         regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/phys-\\[(?P<interface>[^\\]]+)\\]/"
 
-
-  node_health:
-    class_name: topSystem
+  max_capacity:
+    class_name: fvcapRule
     # Additional query parameters for the class query, must start with ? and be separated by &
-    query_parameter: "?rsp-subtree-include=health,required"
+    query_parameter: '?query-target-filter=ne(fvcapRule.userConstraint,"feature-unavailable")'
     metrics:
-      - name: node_health
-        value_name: topSystem.children.0.healthInst.attributes.cur
+      - name: max_capacity
+        value_name: fvcapRule.attributes.constraint
+        type: gauge
+        help: Returns the max capacity of the fabric
+    labels:
+      - property_name: fvcapRule.attributes.subj
+        regex: "^(?P<class>.*)"
+
+  node_cpu:
+    class_name: procSysCPU5min
+    metrics:
+      - name: node_cpu_user
+        value_name: procSysCPU5min.attributes.userLast
         type: "gauge"
-        help: "Returns the health score of a fabric node"
         unit: "ratio"
+        help: "Returns the user space cpu load of a fabric node"
         # Recalculate the metrics value. The expression support simple math expressions - https://github.com/Knetic/govaluate
         # The name must be value.
         # This example recalculate percentage like 90 to 0.9
         value_calculation: "value / 100"
-    labels:
-      - property_name: topSystem.attributes.dn
-        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys"
-      - property_name: topSystem.attributes.state
-        regex: "^(?P<state>.*)"
-      - property_name: topSystem.attributes.oobMgmtAddr
-        regex: "^(?P<oobMgmtAddr>.*)"
-      - property_name: topSystem.attributes.name
-        regex: "^(?P<nodename>.*)"
-      - property_name: topSystem.attributes.role
-        regex: "^(?P<role>.*)"
-
-  tenant_health:
-    class_name: fvTenant
-    query_parameter: "?rsp-subtree-include=health,required"
-    metrics:
-      - name: tenant_health
-        value_name: fvTenant.children.0.healthInst.attributes.cur
+      - name: node_cpu_kernel
+        value_name: procSysCPU5min.attributes.kernelLast
         type: "gauge"
-        help: "Returns the health score of a tenant"
         unit: "ratio"
+        help: "Returns the kernel space cpu load of a fabric node"
         value_calculation: "value / 100"
     labels:
-      - property_name: fvTenant.attributes.name
-        regex: "^(?P<tenant>.*)"
+      - property_name: procSysCPU5min.attributes.dn
+        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/procsys/CDprocSysCPU5min"
+
+
+  node_memory:
+    class_name: procSysMem5min
+    metrics:
+      - name: node_memory_used
+        value_name: procSysMem5min.attributes.usedLast
+        type: "gauge"
+        unit: "bytes"
+        help: "Returns the used memory of a fabric node"
+      - name: node_memory_free
+        value_name: procSysMem5min.attributes.freeLast
+        type: "gauge"
+        unit: "bytes"
+        help: "Returns the kernel space cpu load of a fabric node"
+    labels:
+      - property_name: procSysMem5min.attributes.dn
+        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/procsys/CDprocSysMem5min"
+
+  interface_rx_stats:
+    class_name: eqptIngrBytes5min
+    metrics:
+      - name: interface_rx_unicast
+        value_name: eqptIngrBytes5min.attributes.unicastCum
+        type: counter
+        unit: bytes
+        help: The number of unicast bytes received on the interface since it was integrated into the fabric.
+      - name: interface_rx_multicast
+        value_name: eqptIngrBytes5min.attributes.multicastCum
+        type: counter
+        unit: bytes
+        help: The number of multicast bytes received on the interface since it was integrated into the fabric.
+      - name: interface_rx_broadcast
+        value_name: eqptIngrBytes5min.attributes.floodCum
+        type: counter
+        unit: bytes
+        help: The number of broadcast bytes received on the interface since it was integrated into the fabric.
+    labels:
+      - property_name: eqptIngrBytes5min.attributes.dn
+        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/(?P<interface_type>[a-z]+)-\\[(?P<interface>[^\\]]+)\\]/"
+
+  interface_tx_stats:
+    class_name: eqptEgrBytes5min
+    metrics:
+      - name: interface_tx_unicast
+        value_name: eqptEgrBytes5min.attributes.unicastCum
+        type: counter
+        unit: bytes
+        help: The number of unicast bytes transmitted on the interface since it was integrated into the fabric.
+      - name: interface_tx_multicast
+        value_name: eqptEgrBytes5min.attributes.multicastCum
+        type: counter
+        unit: bytes
+        help: The number of multicast bytes transmitted on the interface since it was integrated into the fabric.
+      - name: interface_tx_broadcast
+        value_name: eqptEgrBytes5min.attributes.floodCum
+        type: counter
+        unit: bytes
+        help: The number of broadcast bytes transmitted on the interface since it was integrated into the fabric.
+    labels:
+      - property_name: eqptEgrBytes5min.attributes.dn
+        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/(?P<interface_type>[a-z]+)-\\[(?P<interface>[^\\]]+)\\]/"
+
+  interface_rx_err_stats:
+    class_name: eqptIngrDropPkts5min
+    metrics:
+      - name: interface_rx_buffer_dropped
+        value_name: eqptIngrDropPkts5min.attributes.bufferCum
+        type: counter
+        unit: pkts
+        help: The number of packets dropped by the interface due to a
+          buffer overrun while receiving since it was integrated into the
+          fabric.
+      - name: interface_rx_error_dropped
+        value_name: eqptIngrDropPkts5min.attributes.errorCum
+        type: counter
+        unit: pkts
+        help: The number of packets dropped by the interface due to a
+          packet error while receiving since it was integrated into the
+          fabric.
+      - name: interface_rx_forwarding_dropped
+        value_name: eqptIngrDropPkts5min.attributes.forwardingCum
+        type: counter
+        unit: pkts
+        help: The number of packets dropped by the interface due to a
+          forwarding issue while receiving since it was integrated into the
+          fabric.
+      - name: interface_rx_loadbal_dropped
+        value_name: eqptIngrDropPkts5min.attributes.lbCum
+        type: counter
+        unit: pkts
+        help: The number of packets dropped by the interface due to a
+          load balancing issue while receiving since it was integrated into
+          the fabric.
+    labels:
+      - property_name: eqptIngrDropPkts5min.attributes.dn
+        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/(?P<interface_type>[a-z]+)-\\[(?P<interface>[^\\]]+)\\]/"
+
+  interface_tx_err_stats:
+    class_name: eqptEgrDropPkts5min
+    metrics:
+      - name: interface_tx_queue_dropped
+        value_name: eqptEgrDropPkts5min.attributes.afdWredCum
+        type: counter
+        unit: pkts
+        help: The number of packets dropped by the interface during queue
+          management while transmitting since it was integrated into the
+          fabric.
+      - name: interface_tx_buffer_dropped
+        value_name: eqptEgrDropPkts5min.attributes.bufferCum
+        type: counter
+        unit: pkts
+        help: The number of packets dropped by the interface due to a
+          buffer overrun while transmitting since it was integrated into the
+          fabric.
+      - name: interface_tx_error_dropped
+        value_name: eqptEgrDropPkts5min.attributes.errorCum
+        type: counter
+        unit: pkts
+        help: The number of packets dropped by the interface due to a
+          packet error while transmitting since it was integrated into the
+          fabric.
+    labels:
+      - property_name: eqptEgrDropPkts5min.attributes.dn
+        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/(?P<interface_type>[a-z]+)-\\[(?P<interface>[^\\]]+)\\]/"
+
+  #  node_temperature:
+  #    class_name: eqptSensor
+  #    query_parameter: '?query-target-filter=wcard(eqptSensor.dn,"topology/.*/sys/ch/.*/sup/.*")'
+  #    metrics:
+  #      - name: node_temperature
+  #        value_name: eqptSensor.attributes.value
+  #        type: "gauge"
+  #        help: "Returns the temperature by sensor of a fabric node"
+  #    labels:
+  #      - property_name: eqptSensor.attributes.dn
+  #        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/ch/supslot-(?P<supslotid>[1-9][0-9]*)/sup/sensor-(?P<sensorid>[1-9][0-9]*)"
+
 
   infra_node_info:
     class_name: infraWiNode
@@ -127,47 +282,57 @@ class_queries:
       - property_name: infraWiNode.attributes.podId
         regex: "^(?P<podid>.*)"
 
-  fabric_health:
-    class_name: fabricHealthTotal
-    query_parameter: '?query-target-filter=wcard(fabricHealthTotal.dn,"topology/.*/health")'
-    metrics:
-      - name: fabric_health
-        value_name: fabricHealthTotal.attributes.cur
-        unit: ratio
-        type: gauge
-        help: Returns the fabric health score
-        value_calculation: "value / 100"
-    labels:
-      - property_name: fabricHealthTotal.attributes.dn
-        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/health"
 
 
-# Compound queries 
+# Compound queries
 compound_queries:
   object_count:
     classnames:
       - class_name: fvCtx
-        label_value: vrf
+        # The label value that will be set to the "labelname: class"
+        label_value: fvCtx
         query_parameter: '?rsp-subtree-include=count'
       - class_name: fvCEp
-        label_value: clientendpoints
+        label_value: fvCEp
         query_parameter: '?rsp-subtree-include=count'
+      - class_name: fvCEp
+        label_value: fvCEpIp
+        query_parameter: '?rsp-subtree-include=required,count&rsp-subtree-class=fvIp&rsp-subtree=children'
       - class_name: fvAEPg
-        label_value: appepg
+        label_value: fvAEPg
         query_parameter: '?rsp-subtree-include=count'
-    labelname: object
+      - class_name: fvBD
+        label_value: fvBD
+        query_parameter: '?rsp-subtree-include=count'
+      - class_name: fvTenant
+        label_value: fvTenant
+        query_parameter: '?rsp-subtree-include=count'
+      - class_name: vnsCDev
+        label_value: vnsCDev
+        query_parameter: '?rsp-subtree-include=count'
+      - class_name: vnsGraphInst
+        label_value: vnsGraphInst
+        query_parameter: '?rsp-subtree-include=count'
+      - class_name: fvIP
+        label_value: fvIP
+        query_parameter: '?rsp-subtree-include=count'
+      - class_name: fvSyntheticIp
+        label_value: fvSyntheticIp
+        query_parameter: '?rsp-subtree-include=count'
+      - class_name: eqptLC
+        label_value: eqptLC
+        query_parameter: '?rsp-subtree-include=count'
+    # The label name
+    labelname: class
     metrics:
-      - name: object_instance
+      - name: object_instances
         value_name: moCount.attributes.count
         type: gauge
-        help: Returns the current count of objects
+        help: Returns the current count of objects for ACI classes
 
   node_count:
-    # Define all the class queries to execute
     classnames:
-      # The class to query
       - class_name: topSystem
-        # The label value for the query
         label_value: spine
         query_parameter: '?query-target-filter=eq(topSystem.role,"spine")&rsp-subtree-include=count'
       - class_name: topSystem
@@ -176,13 +341,115 @@ compound_queries:
       - class_name: topSystem
         label_value: controller
         query_parameter: '?query-target-filter=eq(topSystem.role,"controller")&rsp-subtree-include=count'
-    # The label name
-    labelname: nodetype
+    labelname: type
     metrics:
-      # The metrics name
       - name: nodes
-        # The field in the json that is used as the metric value, qualified path (gjson) under imdata
-        # If the above queries have different value_name if can be configured in the classnames section
         value_name: moCount.attributes.count
         type: gauge
         help: Returns the current count of nodes
+
+# Group class queries
+qroup_class_queries:
+  # Gather all different health related metrics
+  health:
+    name: health
+    unit: ratio
+    type: gauge
+    help: Returns health score
+    queries:
+      - node_health:
+        class_name: topSystem
+        query_parameter: "?rsp-subtree-include=health"
+        metrics:
+          -
+            value_name: topSystem.children.0.healthInst.attributes.cur
+            value_calculation: "value / 100"
+        labels:
+          - property_name: topSystem.attributes.dn
+            regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys"
+          - property_name: topSystem.attributes.state
+            regex: "^(?P<state>.*)"
+          - property_name: topSystem.attributes.oobMgmtAddr
+            regex: "^(?P<oobMgmtAddr>.*)"
+          - property_name: topSystem.attributes.name
+            regex: "^(?P<name>.*)"
+          - property_name: topSystem.attributes.role
+            regex: "^(?P<role>.*)"
+        # A label for the class query
+        staticlabels:
+          - key: class
+            value: topSystem
+
+      - fabric_health:
+        class_name: fabricHealthTotal
+        query_parameter: '?query-target-filter=wcard(fabricHealthTotal.dn,"topology/.*/health")'
+        metrics:
+          -
+            value_name: fabricHealthTotal.attributes.cur
+            value_calculation: "value / 100"
+        labels:
+          - property_name: fabricHealthTotal.attributes.dn
+            regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/health"
+        staticlabels:
+          - key: class
+            value: fabricHealthTotal
+
+      - contract:
+        class_name: fvCtx
+        query_parameter: '?rsp-subtree-include=health,required'
+        metrics:
+          -
+            value_name: fvCtx.children.0.healthInst.attributes.cur
+            value_calculation: "value / 100"
+        labels:
+          - property_name: fvCtx.attributes.dn
+            regex: "^uni/tn-(?P<tenant>.*)/ctx-(?P<ctx>.*)"
+        staticlabels:
+          - key: class
+            value: fvCtx
+
+      - bridge_domain_health_by_label:
+        class_name: fvBD
+        query_parameter: '?rsp-subtree-include=health,required'
+        metrics:
+          -
+            value_name: fvBD.children.0.healthInst.attributes.cur
+            value_calculation: "value / 100"
+        labels:
+          - property_name: fvBD.attributes.dn
+            regex: "^uni/tn-(?P<tenant>.*)/BD-(?P<bd>.*)"
+        staticlabels:
+          - key: class
+            value: fvBD
+
+      - tenant:
+        class_name: fvTenant
+        query_parameter: '?rsp-subtree-include=health,required'
+        metrics:
+          -
+            value_name: fvTenant.children.0.healthInst.attributes.cur
+            value_calculation: "value / 100"
+        labels:
+          - property_name: fvTenant.attributes.dn
+            regex: "^(?P<tenant>.*)"
+        staticlabels:
+          - key: class
+            value: fvTenant
+
+      - aepg:
+        class_name: fvAEPg
+        query_parameter: '?rsp-subtree-include=health,required'
+        metrics:
+          -
+            value_name: fvAEPg.children.0.healthInst.attributes.cur
+            value_calculation: "value / 100"
+        labels:
+          - property_name: fvAEPg.attributes.dn
+            regex: "^uni/tn-(?P<tenant>.*)/ap-(?P<app>.*)/epg-(?P<epg>.*)"
+        staticlabels:
+          - key: class
+            value: fvAEPg
+    # Add labels that will be common for all metrics
+    #staticlabels:
+    #  - key: test
+    #    value: somevalue
