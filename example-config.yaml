@@ -259,7 +259,7 @@ class_queries:
     class_name: infraWiNode
     metrics:
       - name: infra_node
-        value_name: fvTenant.children.0.healthInst.attributes.cur
+        value_name: fvTenant.children.@reverse.0.healthInst.attributes.cur
         type: "counter"
         help: "Returns the info of the infrastructure apic node"
         unit: "info"
@@ -362,7 +362,7 @@ qroup_class_queries:
         query_parameter: "?rsp-subtree-include=health"
         metrics:
           -
-            value_name: topSystem.children.0.healthInst.attributes.cur
+            value_name: topSystem.children.@reverse.0.healthInst.attributes.cur
             value_calculation: "value / 100"
         labels:
           - property_name: topSystem.attributes.dn
@@ -399,7 +399,7 @@ qroup_class_queries:
         query_parameter: '?rsp-subtree-include=health,required'
         metrics:
           -
-            value_name: fvCtx.children.0.healthInst.attributes.cur
+            value_name: fvCtx.children.@reverse.0.healthInst.attributes.cur
             value_calculation: "value / 100"
         labels:
           - property_name: fvCtx.attributes.dn
@@ -413,7 +413,7 @@ qroup_class_queries:
         query_parameter: '?rsp-subtree-include=health,required'
         metrics:
           -
-            value_name: fvBD.children.0.healthInst.attributes.cur
+            value_name: fvBD.children.@reverse.0.healthInst.attributes.cur
             value_calculation: "value / 100"
         labels:
           - property_name: fvBD.attributes.dn
@@ -427,7 +427,7 @@ qroup_class_queries:
         query_parameter: '?rsp-subtree-include=health,required'
         metrics:
           -
-            value_name: fvTenant.children.0.healthInst.attributes.cur
+            value_name: fvTenant.children.@reverse.0.healthInst.attributes.cur
             value_calculation: "value / 100"
         labels:
           - property_name: fvTenant.attributes.dn
@@ -436,12 +436,27 @@ qroup_class_queries:
           - key: class
             value: fvTenant
 
+      - ap:
+        class_name: fvAp
+        query_parameter: '?rsp-subtree-include=health,required'
+        metrics:
+          -
+            value_name: fvAp.children.@reverse.0.healthInst.attributes.cur
+            value_calculation: "value / 100"
+        labels:
+          - property_name: fvAp.attributes.dn
+            regex: "^uni/tn-(?P<tenant>.*)/ap-(?P<app>.*)"
+        staticlabels:
+          - key: class
+            value: fvAp
+
+
       - aepg:
         class_name: fvAEPg
         query_parameter: '?rsp-subtree-include=health,required'
         metrics:
           -
-            value_name: fvAEPg.children.0.healthInst.attributes.cur
+            value_name: fvAEPg.children.@reverse.0.healthInst.attributes.cur
             value_calculation: "value / 100"
         labels:
           - property_name: fvAEPg.attributes.dn
@@ -449,6 +464,7 @@ qroup_class_queries:
         staticlabels:
           - key: class
             value: fvAEPg
+
     # Add labels that will be common for all metrics
     #staticlabels:
     #  - key: test
