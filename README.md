@@ -15,9 +15,11 @@ The metrics that are exported is configured by definitions of a query. The query
 
 # How to configure queries
  
-The exporter provides two types of query configuration:
+The exporter provides three types of query configuration:
 
-- Class queries - These are applicable where one query can result in multiple metric names sharing the same labels. 
+- Class queries - These are applicable where one query can result in multiple metric names sharing the same labels.
+- Group class queries -  These are applicable when multiple queries result in a single metrics name but with configured, 
+common and uniq labels. 
 - Compound queries - These are applicable where multiple queries result in single metric name with configured labels. 
 This is typical when counting different entities.
 
