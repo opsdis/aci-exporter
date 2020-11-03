@@ -15,6 +15,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/Knetic/govaluate"
 	log "github.com/sirupsen/logrus"
@@ -25,6 +26,8 @@ import (
 	"strings"
 	"time"
 )
+
+var arrayExtension = regexpcache.MustCompile("^(?P<stage_1>.*)\\.\\[(?P<child_name>.*)\\](?P<stage_2>.*)")
 
 func newAciAPI(ctx context.Context, fabricConfig Fabric, configQueries AllQueries, queryFilter string) *aciAPI {
 
@@ -440,53 +443,153 @@ func (p aciAPI) getClassMetrics(ch chan []MetricDefinition, v *ClassQuery) {
 	ch <- metricDefinitions
 }
 
-func (p aciAPI) extractClassQueriesData(data string, v *ClassQuery, mv ConfigMetric, metrics []Metric) []Metric {
+func (p aciAPI) extractClassQueriesData(data string, classQuery *ClassQuery, mv ConfigMetric, metrics []Metric) []Metric {
 	result := gjson.Get(data, "imdata")
 
 	result.ForEach(func(key, value gjson.Result) bool {
 
-		metric := Metric{}
+		// Check if the value_name is in the format of fvAEPg.children.[healthInst].attributes.cur
+		match := arrayExtension.FindStringSubmatch(mv.ValueName)
+		if len(match) > 0 {
 
-		// find and parse all labels
-		metric.Labels = make(map[string]string)
-		for _, lv := range v.Labels {
-			re := regexpcache.MustCompile(lv.Regex)
-			match := re.FindStringSubmatch(gjson.Get(value.String(), lv.PropertyName).Str)
-			if len(match) != 0 {
-				for i, name := range re.SubexpNames() {
-					if i != 0 && name != "" {
-						metric.Labels[name] = match[i]
+			// match is an string array of parsed if the .[regexp]. is part of the string
+			// 0: the original string
+			// 1: stage1 all before .[
+			// 2: the child_name between []
+			// 3: stage2 - the rest after ].
+
+			var allChildren []map[string]interface{}
+
+			allChildrenJson := gjson.Get(value.Raw, match[1])
+			json.Unmarshal([]byte(allChildrenJson.Raw), &allChildren)
+
+			for childIndex, child := range allChildren {
+				for childKey, childValue := range child {
+					// add a check if the childKey match the regexp of match[2]
+					re := regexpcache.MustCompile(match[2])
+
+					_, ok := childValue.(map[string]interface{})
+					if ok && re.Match([]byte(childKey)) {
+						metric := Metric{}
+						metric.Labels = make(map[string]string)
+
+						mvLocal := ConfigMetric{
+							Name:             mv.Name,
+							ValueName:        childKey + match[3],
+							ValueCalculation: mv.ValueCalculation,
+							Unit:             mv.Unit,
+							Type:             mv.Type,
+							Help:             mv.Help,
+							ValueTransform:   mv.ValueTransform,
+						}
+
+						// Add all high level labels
+						addLabels(classQuery.Labels, classQuery.StaticLabels, value.String(), metric)
+
+						// Add all [*] labels that will be relative to the child key
+						// Rewrite them from the relative path and add them as Config labels
+						var childLabels []ConfigLabels
+						for _, configLabel := range classQuery.Labels {
+							matchLabels := arrayExtension.FindStringSubmatch(configLabel.PropertyName)
+
+							//if len(matchLabels)  >0 && matchLabels[2] == "*" {
+							if len(matchLabels) > 0 && re.Match([]byte(childKey)) {
+								re := regexpcache.MustCompile(matchLabels[2])
+								if re.Match([]byte(childKey)) {
+									localLabel := ConfigLabels{}
+									localLabel.PropertyName = childKey + matchLabels[3]
+									localLabel.Regex = configLabel.Regex
+									childLabels = append(childLabels, localLabel)
+								}
+							}
+						}
+
+						childJson, _ := json.Marshal(allChildren[childIndex])
+						addLabels(childLabels, nil, string(childJson), metric)
+
+						// Extract labels from child
+						for _, keyLabel := range childLabels {
+							if keyLabel.PropertyName == childKey {
+								re := regexpcache.MustCompile(keyLabel.Regex)
+								match := re.FindStringSubmatch(childKey)
+								if len(match) != 0 {
+									for i, expName := range re.SubexpNames() {
+										if i != 0 && expName != "" {
+											metric.Labels[expName] = match[i]
+										}
+									}
+								}
+							}
+						}
+
+						// extract the metrics value
+						metric.Value = p.toFloatTransform(gjson.Get(string(childJson), mvLocal.ValueName).Str, mvLocal)
+						valueReCalculation(mv, &metric)
+
+						metrics = append(metrics, metric)
 					}
 				}
 			}
-		}
-		// Add static labels
-		for _, slv := range v.StaticLabels {
-			metric.Labels[slv.Key] = slv.Value
-		}
+		} else {
+			// Just plain Gjson without any [] expressions
+			metric := Metric{}
 
-		metric.Value = p.toFloat(gjson.Get(value.String(), mv.ValueName).Str)
+			// find and parse all labels
+			metric.Labels = make(map[string]string)
+			addLabels(classQuery.Labels, classQuery.StaticLabels, value.String(), metric)
 
-		// Post calculation on the value
-		if mv.ValueCalculation != "" {
-			expression, _ := govaluate.NewEvaluableExpression(mv.ValueCalculation)
-			parameters := make(map[string]interface{}, 8)
-			parameters["value"] = p.toFloat(gjson.Get(value.String(), mv.ValueName).Str)
-			result, _ := expression.Evaluate(parameters)
-			metric.Value = result.(float64)
-		}
+			// get the merics value
+			metric.Value = p.toFloatTransform(gjson.Get(value.String(), mv.ValueName).Str, mv)
 
-		// Transform on string value table to float
-		if len(mv.ValueTransform) != 0 {
-			if val, ok := mv.ValueTransform[gjson.Get(value.String(), mv.ValueName).Str]; ok {
-				metric.Value = val
-			}
+			// Post calculation on the value
+			valueReCalculation(mv, &metric)
+
+			metrics = append(metrics, metric)
 		}
 
-		metrics = append(metrics, metric)
 		return true
 	})
 	return metrics
+}
+
+func valueReCalculation(mv ConfigMetric, metric *Metric) {
+	if mv.ValueCalculation != "" {
+		expression, _ := govaluate.NewEvaluableExpression(mv.ValueCalculation)
+		parameters := make(map[string]interface{}, 8)
+		parameters["value"] = metric.Value //p.toFloat(gjson.Get(value.String(), mv.ValueName).Str)
+		result, _ := expression.Evaluate(parameters)
+		metric.Value = result.(float64)
+	}
+}
+
+func addLabels(v []ConfigLabels, sv []StaticLabels, json string, metric Metric) {
+	for _, lv := range v {
+		re := regexpcache.MustCompile(lv.Regex)
+		match := re.FindStringSubmatch(gjson.Get(json, lv.PropertyName).Str)
+		if len(match) != 0 {
+			for i, expName := range re.SubexpNames() {
+				if i != 0 && expName != "" {
+					metric.Labels[expName] = match[i]
+				}
+			}
+		}
+	}
+	// Add static labels
+	for _, slv := range sv {
+		metric.Labels[slv.Key] = slv.Value
+	}
+}
+
+func dumpMap(space string, m map[string]interface{}) {
+	for k, v := range m {
+		if mv, ok := v.(map[string]interface{}); ok {
+			fmt.Printf("{ \"%v\": \n", k)
+			dumpMap(space+"\t", mv)
+			fmt.Printf("}\n")
+		} else {
+			fmt.Printf("%v %v : %v\n", space, k, v)
+		}
+	}
 }
 
 func (p aciAPI) toRatio(value string) float64 {
@@ -497,4 +600,14 @@ func (p aciAPI) toRatio(value string) float64 {
 func (p aciAPI) toFloat(value string) float64 {
 	rate, _ := strconv.ParseFloat(value, 64)
 	return rate
+}
+
+func (p aciAPI) toFloatTransform(value string, mv ConfigMetric) float64 {
+	if len(mv.ValueTransform) != 0 {
+		if val, ok := mv.ValueTransform[value]; ok {
+			return val
+		}
+	}
+	return p.toFloat(value)
+
 }
