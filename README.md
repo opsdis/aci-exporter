@@ -17,11 +17,18 @@ The metrics that are exported is configured by definitions of a query. The query
  
 The exporter provides three types of query configuration:
 
-- Class queries - These are applicable where one query can result in multiple metric names sharing the same labels.
-- Group class queries -  These are applicable when multiple queries result in a single metrics name but with configured, 
-common and uniq labels. 
-- Compound queries - These are applicable where multiple queries result in single metric name with configured labels. 
-This is typical when counting different entities.
+- Class queries - one query, many metrics - These are applicable where one query can result in multiple metric names 
+sharing the same labels. 
+A good example is queries on interfaces, ethpmPhysIf, that results in metrics for speed, state, etc.  
+
+- Group class queries - multiple queries, on metric - These are applicable when multiple queries result in a single 
+metrics name but with configured, common and uniq labels. 
+Example of this is the metric `health`, where all the different objects health require different queries, 
+but they are all health. So instead of xyz_health it becomes health and some label with value xyz.
+ 
+- Compound queries - multiple queries, on metric and fixed labels - These are applicable where multiple queries result 
+in single metric name with configured labels. This is typical when counting different entities with 
+`?rsp-subtree-include=count` since no labels are returned that can be used for labels.
 
 There also some so called built-in queries. These are hard coded queries.
  
@@ -76,6 +83,212 @@ aci_nodes{aci="ACI Fabric1",fabric="cisco_sandbox",node="controller"} 1
 ## Built-in queries  
 The export has some standard metric "built-in". These are:
 - `faults`, labeled by severity and type of fault, like operational, configuration and environment faults.
+
+# Parsing metrics and labels
+A metrics and label value is some part of the json returned by a query. The key for metrics value in all query types is
+`value_name`.
+The aci-exporter use [Gjson](https://github.com/tidwall/gjson) for parsing the metrics value and the label value. 
+To get the state metrics value for the class ethpmPhysIf the parsing expression would be `ethpmPhysIf.attributes.operSt`. 
+
+There are one additions to the Gjson syntax, and it's related to arrays returning objects.
+
+The first example is for an array returning different kind of objects. A good example from the APIC api is the returning 
+of children, like the following query:
+
+    /api/class/fvAEPg.json?rsp-subtree-include=health,required
+ 
+This will return a child structure like this:
+
+```
+"children": [
+          {
+            "healthNodeInst": {
+              "attributes": {
+                "childAction": "deleteNonPresent",
+                "chng": "400",
+                "cur": "100",
+                "isExisting": "no",
+                "lcOwn": "local",
+                "maxSev": "cleared",
+                "modTs": "never",
+                "nodeId": "101",
+                "podId": "1",
+                "prev": "20",
+                "rn": "nodehealth-101",
+                "status": "",
+                "twScore": "100",
+                "updTs": "2020-08-11T17:41:24.154+02:00",
+                "weight": "1"
+              }
+            }
+          },
+          {
+            "healthNodeInst": {
+              "attributes": {
+                "childAction": "deleteNonPresent",
+                "chng": "400",
+                "cur": "100",
+                "isExisting": "no",
+                "lcOwn": "local",
+                "maxSev": "cleared",
+                "modTs": "never",
+                "nodeId": "102",
+                "podId": "1",
+                "prev": "20",
+                "rn": "nodehealth-102",
+                "status": "",
+                "twScore": "100",
+                "updTs": "2020-08-11T17:41:31.400+02:00",
+                "weight": "1"
+              }
+            }
+          },
+          {
+            "healthInst": {
+              "attributes": {
+                "childAction": "",
+                "chng": "400",
+                "cur": "100",
+                "maxSev": "cleared",
+                "modTs": "never",
+                "prev": "20",
+                "rn": "health",
+                "status": "",
+                "twScore": "100",
+                "updTs": "2020-08-11T17:41:32.306+02:00"
+              }
+            }
+          }
+        ]
+```
+
+ From the output, the health of the specific fvAEPg is defined in the third entry in the array, `healthInst`, and the 
+ other entries are related to the ACI nodes of the application endpoint group. If we just want to to get the result of 
+ `cur` from the `healthInst` we express the path as:
+ 
+    fvAEPg.children.[healthInst].attributes.cur
+ 
+ This defines that in the `children` array we want to extract data from the `healthInst` entry. 
+ So the addition is to use the left and right bracket to define that its an array, and between the brackets is the 
+ regular expression of the entry.
+ 
+ If multiple instances of `healthInst`
+ existed only the first found will be used. 
+  
+> This currently only work with one level of arrays.
+
+If want to iterate over all children the expression would be `.[.*].`. 
+This is useful when a class query return a number of different objects. 
+Example of this would be for the class `ethpmDOMStats` using the query `?rsp-subtree=children`. This will return a number
+of children objets, and for all the children classes we like to get the `hiAlarm` metric.
+```
+value_name: ethpmDOMStats.children.[.*].attributes.hiAlarm
+```
+The `.*` will be substituted with the children class name. So that means it can also be used as a label like:
+```
+    labels:
+      # this will be the child class name
+      - property_name: ethpmDOMStats.children.[.*]
+        regex: "^(?P<class>.*)"
+      # this will be the lanes of the child class
+      - property_name: ethpmDOMStats.children.[.*].attributes.lanes
+        regex: "^(?P<laneid>.*)"
+```  
+
+The full query configuration
+```
+  ethpmdomstats:
+    class_name: ethpmDOMStats
+    query_parameter: '?rsp-subtree=children'
+    metrics:
+      - name: ethpmDOMStats_hiAlarm
+        value_name: ethpmDOMStats.children.[.*].attributes.hiAlarm
+        type: "gauge"
+        help: "Returns hiAlarm"
+    labels:
+      - property_name: ethpmDOMStats.attributes.dn
+        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/phys-\\[(?P<interface>[^\\]]+)\\]/"
+      - property_name: ethpmDOMStats.children.[.*]
+        regex: "^(?P<class>.*)"
+      - property_name: ethpmDOMStats.children.[.*].attributes.lanes
+        regex: "^(?P<laneid>.*)"
+
+```
+The query will return a prometheus metrics response like this, where the `class` label is set to the name of each child 
+class name:
+```
+curl -s 'http://localhost:9643/probe?target=XYZ&queries=ethpmdomstats'
+# HELP ethpmDOMStats_hiAlarm Returns hiAlarm
+# TYPE ethpmDOMStats_hiAlarm gauge
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMRxPwrStats",fabric="miradot",interface="eth1/1",laneid="1",nodeid="101",podid="1"} 0.999912
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTxPwrStats",fabric="miradot",interface="eth1/1",laneid="1",nodeid="101",podid="1"} 2.50005
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMCurrentStats",fabric="miradot",interface="eth1/1",laneid="1",nodeid="101",podid="1"} 90.000008
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTempStats",fabric="miradot",interface="eth1/1",laneid="1",nodeid="101",podid="1"} 90
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMVoltStats",fabric="miradot",interface="eth1/1",laneid="1",nodeid="101",podid="1"} 3.6
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMRxPwrStats",fabric="miradot",interface="eth1/2",laneid="1",nodeid="101",podid="1"} 3.0103
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTxPwrStats",fabric="miradot",interface="eth1/2",laneid="1",nodeid="101",podid="1"} 1.291741
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMCurrentStats",fabric="miradot",interface="eth1/2",laneid="1",nodeid="101",podid="1"} 100.000008
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTempStats",fabric="miradot",interface="eth1/2",laneid="1",nodeid="101",podid="1"} 90
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMVoltStats",fabric="miradot",interface="eth1/2",laneid="1",nodeid="101",podid="1"} 3.63
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMRxPwrStats",fabric="miradot",interface="eth1/48",laneid="1",nodeid="101",podid="1"} 3.000082
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTxPwrStats",fabric="miradot",interface="eth1/48",laneid="1",nodeid="101",podid="1"} 7.000024
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMCurrentStats",fabric="miradot",interface="eth1/48",laneid="1",nodeid="101",podid="1"} 110.000008
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTempStats",fabric="miradot",interface="eth1/48",laneid="1",nodeid="101",podid="1"} 100
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMVoltStats",fabric="miradot",interface="eth1/48",laneid="1",nodeid="101",podid="1"} 3.6
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMRxPwrStats",fabric="miradot",interface="eth1/1",laneid="1",nodeid="102",podid="1"} 3.000082
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTxPwrStats",fabric="miradot",interface="eth1/1",laneid="1",nodeid="102",podid="1"} 7.000024
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMCurrentStats",fabric="miradot",interface="eth1/1",laneid="1",nodeid="102",podid="1"} 110.000008
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTempStats",fabric="miradot",interface="eth1/1",laneid="1",nodeid="102",podid="1"} 100
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMVoltStats",fabric="miradot",interface="eth1/1",laneid="1",nodeid="102",podid="1"} 3.6
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMRxPwrStats",fabric="miradot",interface="eth1/2",laneid="1",nodeid="102",podid="1"} 3.0103
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTxPwrStats",fabric="miradot",interface="eth1/2",laneid="1",nodeid="102",podid="1"} 1.291741
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMCurrentStats",fabric="miradot",interface="eth1/2",laneid="1",nodeid="102",podid="1"} 100.000008
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTempStats",fabric="miradot",interface="eth1/2",laneid="1",nodeid="102",podid="1"} 90
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMVoltStats",fabric="miradot",interface="eth1/2",laneid="1",nodeid="102",podid="1"} 3.63
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMRxPwrStats",fabric="miradot",interface="eth1/48",laneid="1",nodeid="102",podid="1"} 3.000082
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTxPwrStats",fabric="miradot",interface="eth1/48",laneid="1",nodeid="102",podid="1"} 7.000024
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMCurrentStats",fabric="miradot",interface="eth1/48",laneid="1",nodeid="102",podid="1"} 110.000008
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTempStats",fabric="miradot",interface="eth1/48",laneid="1",nodeid="102",podid="1"} 100
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMVoltStats",fabric="miradot",interface="eth1/48",laneid="1",nodeid="102",podid="1"} 3.6
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMRxPwrStats",fabric="miradot",interface="eth1/3",laneid="1",nodeid="102",podid="1"} 1.000257
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTxPwrStats",fabric="miradot",interface="eth1/3",laneid="1",nodeid="102",podid="1"} -1.999707
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMCurrentStats",fabric="miradot",interface="eth1/3",laneid="1",nodeid="102",podid="1"} 17
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTempStats",fabric="miradot",interface="eth1/3",laneid="1",nodeid="102",podid="1"} 95
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMVoltStats",fabric="miradot",interface="eth1/3",laneid="1",nodeid="102",podid="1"} 3.9
+# HELP scrape_duration_seconds The duration, in seconds, of the last scrape of the fabric
+# TYPE scrape_duration_seconds gauge
+aci_scrape_duration_seconds{aci="VBDC-Fabric1",fabric="miradot"} 0.116875019
+
+```
+# Metrics transformations
+Prometheus only support metrics values of float. Some metrics from ACI api is returned as strings, and needs to be 
+transformed to a float. This can be done with a `value_transform`. E.g. the speed of an interface:
+```
+        value_transform:
+          'unknown':            0
+          '100M':       100000000
+          '1G':        1000000000
+          '10G':      10000000000
+          '25G':      25000000000
+          '40G':      40000000000
+          '100G':    100000000000
+
+```
+Or the state of a interface:
+```
+        value_transform:
+           'unknown': 0
+           'down': 1
+           'up': 2
+           'link-up': 3
+```
+
+It is also possible to recalculate a metrics value using `value_calculation`. Like present percentage in decimal: 
+```
+value_calculation: "value / 100"
+```
+
+>The `value` is the named variable for the metric value.
 
 # Labels
 Since all queries are configurable metrics name and label definitions are up to the person doing the configuration.
