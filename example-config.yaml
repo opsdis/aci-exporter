@@ -117,6 +117,21 @@ class_queries:
       - property_name: procSysCPU5min.attributes.dn
         regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/procsys/CDprocSysCPU5min"
 
+  ethpmdomstats:
+    class_name: ethpmDOMStats
+    query_parameter: '?rsp-subtree=children'
+    metrics:
+      - name: ethpmDOMStats_hiAlarm
+        value_name: ethpmDOMStats.children.[.*].attributes.hiAlarm
+        type: "gauge"
+        help: "Returns hiAlarm"
+    labels:
+      - property_name: ethpmDOMStats.attributes.dn
+        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/phys-\\[(?P<interface>[^\\]]+)\\]/"
+      - property_name: ethpmDOMStats.children.[.*]
+        regex: "^(?P<class>.*)"
+      - property_name: ethpmDOMStats.children.[.*].attributes.lanes
+        regex: "^(?P<laneid>.*)"
 
   node_memory:
     class_name: procSysMem5min
@@ -242,24 +257,12 @@ class_queries:
       - property_name: eqptEgrDropPkts5min.attributes.dn
         regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/(?P<interface_type>[a-z]+)-\\[(?P<interface>[^\\]]+)\\]/"
 
-  #  node_temperature:
-  #    class_name: eqptSensor
-  #    query_parameter: '?query-target-filter=wcard(eqptSensor.dn,"topology/.*/sys/ch/.*/sup/.*")'
-  #    metrics:
-  #      - name: node_temperature
-  #        value_name: eqptSensor.attributes.value
-  #        type: "gauge"
-  #        help: "Returns the temperature by sensor of a fabric node"
-  #    labels:
-  #      - property_name: eqptSensor.attributes.dn
-  #        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/ch/supslot-(?P<supslotid>[1-9][0-9]*)/sup/sensor-(?P<sensorid>[1-9][0-9]*)"
-
-
   infra_node_info:
     class_name: infraWiNode
     metrics:
       - name: infra_node
-        value_name: fvTenant.children.@reverse.0.healthInst.attributes.cur
+        # In this case we are not looking for a value just the labels for info
+        value_name: X
         type: "counter"
         help: "Returns the info of the infrastructure apic node"
         unit: "info"
@@ -399,7 +402,7 @@ qroup_class_queries:
         query_parameter: '?rsp-subtree-include=health,required'
         metrics:
           -
-            value_name: fvCtx.children.@reverse.0.healthInst.attributes.cur
+            value_name: fvCtx.children.[healthInst].attributes.cur
             value_calculation: "value / 100"
         labels:
           - property_name: fvCtx.attributes.dn
@@ -413,7 +416,7 @@ qroup_class_queries:
         query_parameter: '?rsp-subtree-include=health,required'
         metrics:
           -
-            value_name: fvBD.children.@reverse.0.healthInst.attributes.cur
+            value_name: fvBD.children.[healthInst].attributes.cur
             value_calculation: "value / 100"
         labels:
           - property_name: fvBD.attributes.dn
@@ -427,7 +430,7 @@ qroup_class_queries:
         query_parameter: '?rsp-subtree-include=health,required'
         metrics:
           -
-            value_name: fvTenant.children.@reverse.0.healthInst.attributes.cur
+            value_name: fvTenant.children.[healthInst].attributes.cur
             value_calculation: "value / 100"
         labels:
           - property_name: fvTenant.attributes.dn
@@ -441,7 +444,7 @@ qroup_class_queries:
         query_parameter: '?rsp-subtree-include=health,required'
         metrics:
           -
-            value_name: fvAp.children.@reverse.0.healthInst.attributes.cur
+            value_name: fvAp.children.[healthInst].attributes.cur
             value_calculation: "value / 100"
         labels:
           - property_name: fvAp.attributes.dn
@@ -450,13 +453,12 @@ qroup_class_queries:
           - key: class
             value: fvAp
 
-
       - aepg:
         class_name: fvAEPg
         query_parameter: '?rsp-subtree-include=health,required'
         metrics:
           -
-            value_name: fvAEPg.children.@reverse.0.healthInst.attributes.cur
+            value_name: fvAEPg.children.[healthInst].attributes.cur
             value_calculation: "value / 100"
         labels:
           - property_name: fvAEPg.attributes.dn
