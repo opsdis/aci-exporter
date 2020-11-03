@@ -76,8 +76,11 @@ func (m Metric) Labels2Prometheus(commonLabels map[string]string) string {
 	labelstr := ""
 	sep := ""
 	for _, k := range keys {
-		labelstr = labelstr + fmt.Sprintf("%s%s=\"%s\"", sep, k, m.Labels[k])
-		sep = ","
+		// Filter out empty labels
+		if m.Labels[k] != "" {
+			labelstr = labelstr + fmt.Sprintf("%s%s=\"%s\"", sep, k, m.Labels[k])
+			sep = ","
+		}
 	}
 	return labelstr
 }
