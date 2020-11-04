@@ -2,9 +2,6 @@ aci-exporter - An Cisco ACI Prometheus exporter
 ------------
 [![published](https://static.production.devnetcloud.com/codeexchange/assets/images/devnet-published.svg)](https://developer.cisco.com/codeexchange/github/repo/opsdis/aci-exporter)
 
-> This project is still in alpha and everything may change. If this exporter is useful or might be, please share
-> your experience and/or improvements.  
-
 # Overview
 The aci-exporter provide metrics from a Cisco ACI fabric by using the ACI Rest API against ACPI controller(s).
 
@@ -408,6 +405,3 @@ Please check out that project especially if you like to contribute to a Python p
 # License
 This work is licensed under the GNU GENERAL PUBLIC LICENSE Version 3.
  
-# Todo 
-- Exclude configured queries for a specific fabric.
-
