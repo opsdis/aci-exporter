@@ -169,9 +169,7 @@ func main() {
 	log.Info(fmt.Sprintf("%s starting on port %d", ExporterName, viper.GetInt("port")))
 
 	s := &http.Server{
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		Addr:         ":" + strconv.Itoa(viper.GetInt("port")),
+		Addr: ":" + strconv.Itoa(viper.GetInt("port")),
 	}
 	log.Fatal(s.ListenAndServe())
 }
