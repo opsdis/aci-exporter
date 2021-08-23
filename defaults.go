@@ -59,15 +59,24 @@ func SetDefaultValues() {
 	viper.BindEnv("openmetrics")
 
 	// HTTPCLient
-	viper.SetDefault("HTTPClient.timeout", 3)
+	viper.SetDefault("HTTPClient.timeout", 0)
 	viper.BindEnv("HTTPClient.timeout")
 
-	viper.SetDefault("HTTPClient.keepalive", 10)
+	viper.SetDefault("HTTPClient.keepalive", 15)
 	viper.BindEnv("HTTPClient.keepalive")
 
+	// This is currently not used
 	viper.SetDefault("HTTPClient.tlshandshaketimeout", 10)
 	viper.BindEnv("HTTPClient.tlshandshaketimeout")
 
 	viper.SetDefault("HTTPClient.insecureHTTPS", true)
 	viper.BindEnv("HTTPClient.insecureHTTPS")
+
+	// HTTPServer
+	viper.SetDefault("httpserver.read_timeout", 0)
+	viper.BindEnv("httpserver.read_timeout")
+
+	viper.SetDefault("httpserver.write_timeout", 0)
+	viper.BindEnv("httpserver.write_timeout")
+
 }

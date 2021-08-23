@@ -336,7 +336,7 @@ Any critical errors between the exporter and the apic controller will return 503
 failure and failure to get the fabric name.
  
 There may be situations where the export will have failure against some api calls that collect data, due to timeout or
-faulty configuration. They will just not be part of the output.
+faulty configuration. They will just not be part of the metric output.
 
 Any access failures to apic[s] are written to the log.
 

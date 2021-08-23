@@ -10,7 +10,7 @@ fabrics:
   # This is the Cisco provided sandbox that is open for testing
   cisco_sandbox:
     username: admin
-    password: ciscopsdt
+    password: <check the cisco sandbox to get the password>
     apic:
       - https://sandboxapicdc.cisco.com
 
@@ -26,11 +26,17 @@ fabrics:
       - https://apic2
 
 # Http client settings used to access apic
-httpclient:
-  insecurehttps: true
-  keepalive: 120
-  timeout: 30
+# Below is the default values, where 0 is no timeout
+#httpclient:
+#  insecurehttps: true
+#  keepalive: 15
+#  timeout: 0
 
+# Http server settings - this is for the web server aci-exporter expose
+# Below is the default values, where 0 is no timeout
+#httpserver:
+#  read_timeout: 0
+#  write_timeout: 0
 
 # The query sections define queries that should be ran by all profiles
 

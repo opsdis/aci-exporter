@@ -38,15 +38,15 @@ func (c HTTPClient) GetJar() http.CookieJar {
 // GetClient return a http client
 func (c HTTPClient) GetClient() *http.Client {
 
-	if c.Timeout == 0 {
-		c.Timeout = 3
-	}
-	if c.Keepalive == 0 {
-		c.Keepalive = 10
-	}
-	if c.Tlshandshaketimeout == 0 {
-		c.Tlshandshaketimeout = 10
-	}
+	//if c.Timeout == 0 {
+	//	c.Timeout = 3
+	//}
+	//if c.Keepalive == 0 {
+	//	c.Keepalive = 10
+	//}
+	//if c.Tlshandshaketimeout == 0 {
+	//	c.Tlshandshaketimeout = 10
+	//}
 	//
 	rootCAs, _ := x509.SystemCertPool()
 	if rootCAs == nil {

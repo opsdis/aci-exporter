@@ -167,10 +167,10 @@ func main() {
 	))
 
 	log.Info(fmt.Sprintf("%s starting on port %d", ExporterName, viper.GetInt("port")))
-
+	log.Info(fmt.Sprintf("Read timeout %s, Write timeout %s", viper.GetDuration("httpserver.read_timeout")*time.Second, viper.GetDuration("httpserver.write_timeout")*time.Second))
 	s := &http.Server{
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		ReadTimeout:  viper.GetDuration("httpserver.read_timeout") * time.Second,
+		WriteTimeout: viper.GetDuration("httpserver.write_timeout") * time.Second,
 		Addr:         ":" + strconv.Itoa(viper.GetInt("port")),
 	}
 	log.Fatal(s.ListenAndServe())

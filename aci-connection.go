@@ -53,10 +53,10 @@ func newAciConnction(ctx context.Context, fabricConfig Fabric) *AciConnection {
 	jar, _ := cookiejar.New(nil)
 
 	var httpClient = HTTPClient{
-		InsecureHTTPS:       viper.GetBool("HTTPClient.insecureHTTPS"),
-		Timeout:             viper.GetInt("HTTPClient.timeout"),
-		Keepalive:           viper.GetInt("HTTPClient.keepalive"),
-		Tlshandshaketimeout: viper.GetInt("HTTPClient.tlshandshaketimeout"),
+		InsecureHTTPS:       viper.GetBool("httpclient.insecureHTTPS"),
+		Timeout:             viper.GetInt("httpclient.timeout"),
+		Keepalive:           viper.GetInt("httpclient.keepalive"),
+		Tlshandshaketimeout: viper.GetInt("httpclient.tlshandshaketimeout"),
 		cookieJar:           jar,
 	}.GetClient()
 
@@ -98,8 +98,7 @@ func (c AciConnection) login() error {
 			log.WithFields(log.Fields{
 				"requestid": c.ctx.Value("requestid"),
 				"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
-			}).Info("Using apic %s", controller)
-
+			}).Info(fmt.Sprintf("Using apic %s", controller))
 			return nil
 		}
 	}
@@ -157,6 +156,7 @@ func (c AciConnection) get(label string, url string) ([]byte, error) {
 	log.WithFields(log.Fields{
 		"method":    "GET",
 		"uri":       url,
+		"class":     label,
 		"status":    status,
 		"length":    len(body),
 		"requestid": c.ctx.Value("requestid"),
