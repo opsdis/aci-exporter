@@ -8,6 +8,6 @@ require (
 	github.com/segmentio/ksuid v1.0.3
 	github.com/sirupsen/logrus v1.6.0
 	github.com/spf13/viper v1.7.0
-	github.com/tidwall/gjson v1.6.1
+	github.com/tidwall/gjson v1.6.5
 	github.com/umisama/go-regexpcache v0.0.0-20150417035358-2444a542492f
 )
