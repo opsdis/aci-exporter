@@ -598,7 +598,19 @@ func (p aciAPI) toRatio(value string) float64 {
 }
 
 func (p aciAPI) toFloat(value string) float64 {
-	rate, _ := strconv.ParseFloat(value, 64)
+	rate, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		// if the value a date time convert to timestamp
+		t, err := time.Parse(time.RFC3339, value)
+		rate = float64(t.Unix())
+		if err != nil {
+			log.WithFields(log.Fields{
+				"value": value,
+			}).Info("could not convert value to float, will return 0.0 ")
+			return 0.0
+		}
+
+	}
 	return rate
 }
 
