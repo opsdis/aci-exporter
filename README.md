@@ -32,6 +32,7 @@ There also some so called built-in queries. These are hard coded queries.
 > Example of queries can be found in the `example-config.yaml` file. 
 > Make sure you understand the ACI api before changing or creating new ones.
 
+
 ## Class queries
 Class queries can be done against the different ACI classes. For a single query multiple metrics can be collected. 
 All metrics will share the same labels.  
@@ -258,8 +259,15 @@ aci_scrape_duration_seconds{aci="VBDC-Fabric1",fabric="miradot"} 0.116875019
 
 ```
 # Metrics transformations
-Prometheus only support metrics values of float. Some metrics from ACI api is returned as strings, and needs to be 
-transformed to a float. This can be done with a `value_transform`. E.g. the speed of an interface:
+In the query configuration the attribute `value_name` define the entity in the response that will be used as a value 
+for the metrics. Prometheus can only manage metrics value of the type float, so all values must be transformed to 
+a float. The export automatically handle this for values of the type:
+- Float
+- Integers
+- Time stamp in the format of rfc 3339, will be transformed to a UNIX timestamp in seconds
+
+Some metrics from ACI api is returned as strings, and needs to be transformed to a float. 
+This can be done with a `value_transform`. E.g. the speed of an interface:
 ```
         value_transform:
           'unknown':            0
@@ -271,7 +279,7 @@ transformed to a float. This can be done with a `value_transform`. E.g. the spee
           '100G':    100000000000
 
 ```
-Or the state of a interface:
+Or the state of an interface:
 ```
         value_transform:
            'unknown': 0
