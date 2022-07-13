@@ -65,8 +65,8 @@ func newAciConnction(ctx context.Context, fabricConfig Fabric) *AciConnection {
 
 	urlMap := make(map[string]string)
 
-	urlMap["login"] = "/api/mo/aaaLogin.xml"
-	urlMap["logout"] = "/api/mo/aaaLogout.xml"
+	urlMap["login"] = "/api/aaaLogin.xml"
+	urlMap["logout"] = "/api/aaaLogout.xml"
 	urlMap["faults"] = "/api/class/faultCountsWithDetails.json"
 	urlMap["aci_name"] = "/api/mo/topology/pod-1/node-1/av.json"
 
