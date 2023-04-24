@@ -46,13 +46,14 @@ type ClassQuery struct {
 
 // ConfigMetric define the configuration of metric
 type ConfigMetric struct {
-	Name             string             `mapstructure:"name"`
-	ValueName        string             `mapstructure:"value_name"`
-	ValueCalculation string             `mapstructure:"value_calculation"`
-	Unit             string             `mapstructure:"unit"`
-	Type             string             `mapstructure:"type"`
-	Help             string             `mapstructure:"help"`
-	ValueTransform   map[string]float64 `mapstructure:"value_transform"`
+	Name                string             `mapstructure:"name"`
+	ValueName           string             `mapstructure:"value_name"`
+	ValueCalculation    string             `mapstructure:"value_calculation"`
+	Unit                string             `mapstructure:"unit"`
+	Type                string             `mapstructure:"type"`
+	Help                string             `mapstructure:"help"`
+	ValueTransform      map[string]float64 `mapstructure:"value_transform"`
+	ValueRegexTransform string             `mapstructure:"value_regex_transformation"`
 }
 
 // ConfigLabels define the configuration of label to parse
