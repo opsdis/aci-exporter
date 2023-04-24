@@ -18,16 +18,16 @@ The exporter provides three types of query configuration:
 sharing the same labels. 
 A good example is queries on interfaces, ethpmPhysIf, that results in metrics for speed, state, etc.  
 
-- Group class queries - multiple queries, on metric - These are applicable when multiple queries result in a single 
+- Group class queries - multiple queries, one metric - These are applicable when multiple queries result in a single 
 metrics name but with configured, common and uniq labels. 
 Example of this is the metric `health`, where all the different objects health require different queries, 
 but they are all health. So instead of xyz_health it becomes health and some label with value xyz.
  
-- Compound queries - multiple queries, on metric and fixed labels - These are applicable where multiple queries result 
+- Compound queries - multiple queries, one metric and fixed labels - These are applicable where multiple queries result 
 in single metric name with configured labels. This is typical when counting different entities with 
 `?rsp-subtree-include=count` since no labels are returned that can be used for labels.
 
-There also some so called built-in queries. These are hard coded queries.
+There also some so-called built-in queries. These are hard coded queries.
  
 > Example of queries can be found in the `example-config.yaml` file. 
 > Make sure you understand the ACI api before changing or creating new ones.
@@ -51,7 +51,7 @@ In the below example we use the `topSystem.attributes.dn` property and parse it 
 names `podid` and `nodid`. The property `topSystem.attributes.state` will return a label name `state` matching the
 whole property value.
 
-```
+```yaml
     labels:
       - property_name: topSystem.attributes.dn
         regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys"
@@ -88,16 +88,18 @@ A metrics and label value is some part of the json returned by a query. The key 
 The aci-exporter use [Gjson](https://github.com/tidwall/gjson) for parsing the metrics value and the label value. 
 To get the state metrics value for the class ethpmPhysIf the parsing expression would be `ethpmPhysIf.attributes.operSt`. 
 
-There are one additions to the Gjson syntax, and it's related to arrays returning objects.
+There are one addition to the Gjson syntax, and it's related to arrays returning objects.
 
 The first example is for an array returning different kind of objects. A good example from the APIC api is the returning 
 of children, like the following query:
 
-    /api/class/fvAEPg.json?rsp-subtree-include=health,required
- 
+```
+/api/class/fvAEPg.json?rsp-subtree-include=health,required
+```
+
 This will return a child structure like this:
 
-```
+```yaml
 "children": [
           {
             "healthNodeInst": {
@@ -161,13 +163,13 @@ This will return a child structure like this:
 ```
 
  From the output, the health of the specific fvAEPg is defined in the third entry in the array, `healthInst`, and the 
- other entries are related to the ACI nodes of the application endpoint group. If we just want to to get the result of 
+ other entries are related to the ACI nodes of the application endpoint group. If we just want to get the result of 
  `cur` from the `healthInst` we express the path as:
  
     fvAEPg.children.[healthInst].attributes.cur
  
  This defines that in the `children` array we want to extract data from the `healthInst` entry. 
- So the addition is to use the left and right bracket to define that its an array, and between the brackets is the 
+ So the addition is to use the left and right bracket to define that it's an array, and between the brackets is the 
  regular expression of the entry.
  
  If multiple instances of `healthInst`
@@ -175,15 +177,15 @@ This will return a child structure like this:
   
 > This currently only work with one level of arrays.
 
-If want to iterate over all children the expression would be `.[.*].`. 
+If you want to iterate over all children the expression would be `.[.*].`. 
 This is useful when a class query return a number of different objects. 
 Example of this would be for the class `ethpmDOMStats` using the query `?rsp-subtree=children`. This will return a number
 of children objets, and for all the children classes we like to get the `hiAlarm` metric.
-```
+```yaml
 value_name: ethpmDOMStats.children.[.*].attributes.hiAlarm
 ```
 The `.*` will be substituted with the children class name. So that means it can also be used as a label like:
-```
+```yaml
     labels:
       # this will be the child class name
       - property_name: ethpmDOMStats.children.[.*]
@@ -194,7 +196,7 @@ The `.*` will be substituted with the children class name. So that means it can 
 ```  
 
 The full query configuration
-```
+```yaml
   ethpmdomstats:
     class_name: ethpmDOMStats
     query_parameter: '?rsp-subtree=children'
@@ -266,9 +268,10 @@ a float. The export automatically handle this for values of the type:
 - Integers
 - Time stamp in the format of rfc 3339, will be transformed to a UNIX timestamp in seconds
 
+## Value transformation
 Some metrics from ACI api is returned as strings, and needs to be transformed to a float. 
 This can be done with a `value_transform`. E.g. the speed of an interface:
-```
+```yaml
         value_transform:
           'unknown':            0
           '100M':       100000000
@@ -280,20 +283,44 @@ This can be done with a `value_transform`. E.g. the speed of an interface:
 
 ```
 Or the state of an interface:
-```
+```yaml
         value_transform:
            'unknown': 0
            'down': 1
            'up': 2
            'link-up': 3
 ```
+## Value regex transformation
+With value regex transformation, `value_regex_transformation`, it's possible needed to extract a portion of the 
+string to a value.
+In the example the string in `fvnsEncapBlk.attributes.from` returns something like `vlan-120`. With the regex 
+transformation the value `200` will be extracted and used as the metrics value
 
+```yaml
+class_queries:
+  vlans:
+    class_name: fvnsEncapBlk
+    metrics:
+      - name: vlans_from
+        value_name: fvnsEncapBlk.attributes.from
+        type: gauge
+        help: The from vlan
+        value_regex_transformation: "vlan-(.*)"
+    labels:
+      - property_name: fvnsEncapBlk.attributes.dn
+        regex: "^uni/infra/vlanns-\\[(?P<vlanns>.+)\\]-static/from-\\[(?P<from>.+)\\]-to-\\[(?P<to>.+)\\]"
+```
+
+> If both `value_transformation` and `value_regex_transformation` is used `value_regex_transformation` is always 
+> processed before `value_transformation`.
+
+## Value calculation
 It is also possible to recalculate a metrics value using `value_calculation`. Like present percentage in decimal: 
-```
-value_calculation: "value / 100"
+```yaml
+    value_calculation: "value / 100"
 ```
 
->The `value` is the named variable for the metric value.
+>The `value` is the named variable for the metric value and can not be named anything else.
 
 # Labels
 Since all queries are configurable metrics name and label definitions are up to the person doing the configuration.
@@ -325,17 +352,16 @@ A fabric profile include the information specific to an ACI fabrics, like authen
 
 > The user need to have admin read-only rights in the domain `All` to allow all kinds of queries.
 
-If there is multiple apic urls configured the exporter will use the first apic it can login to starting with the first
-in the list.
+If there is multiple apic urls configured the exporter will use the first apic it can login to in the list.
 
 All configuration properties can be set by using environment variables. The prefix is `ACI_EXPORTER_` and property 
 must be in uppercase. So to set the property `port` with an environment variable `ACI_EXPORTER_PORT=7121`. 
 
 # Openmetrics format
 The exporter support [openmetrics](https://openmetrics.io/) format. This is done by adding the following accept header to the request:
-
-    "Accept: application/openmetrics-text"
-
+```
+"Accept: application/openmetrics-text"
+```
 The configuration property `openmetrics` set to `true` will result in that all request will have an openmetrics 
 response independent of the above header.
 
@@ -350,24 +376,26 @@ Any access failures to apic[s] are written to the log.
 
 # Installation
 
-## Build 
-    go build -o build/aci-exporter  *.go
+## Build
+```shell
+go build -o build/aci-exporter  *.go
+```
 
 ## Run
-By default the exporter will look for a configuration file called `config.yaml`. The directory search paths are:
+By default, the exporter will look for a configuration file called `config.yaml`. The directory search paths are:
 
 - Current directory
 - $HOME/.aci-exporter
 - usr/local/etc/aci-exporter
 - etc/aci-exporter
 
-```
-    ./build/aci-exporter
+```shell
+./build/aci-exporter
 ```
 
 To run against the Cisco ACI sandbox:
-```
-    ./build/aci-exporter -config example-config.yaml
+```shell
+./build/aci-exporter -config example-config.yaml
 ```
 > Make sure that the sandbox url and authentication is correct. Check out Cisco sandboxes on 
 > https://devnetsandbox.cisco.com/RM/Topology - "ACI Simulator AlwaysOn"
@@ -375,8 +403,8 @@ To run against the Cisco ACI sandbox:
 ## Test
 To test against the Cisco ACI sandbox:
 
-```
-    curl -s 'http://localhost:9643/probe?target=cisco_sandbox'
+```shell
+curl -s 'http://localhost:9643/probe?target=cisco_sandbox'
 ```
     
 The target is a named fabric in the configuration file.
@@ -384,8 +412,8 @@ The target is a named fabric in the configuration file.
 There is also possible to run a limited number of queries by using the query parameter `queries`.
 This should be a comma separated list of the query names in the config file. It may also contain built-in query names.
 
-```
-    curl -s 'http://localhost:9643/probe?target=cisco_sandbox&queries=node_health,faults'
+```shell
+curl -s 'http://localhost:9643/probe?target=cisco_sandbox&queries=node_health,faults'
 ```
 
 # Internal metrics
@@ -399,11 +427,14 @@ Please see the example file prometheus/prometheus.yml.
 # Docker 
 The aci-export can be build and run as a docker container. 
 
-    docker build . -t aci-exporter
+```shell
+docker build . -t aci-exporter
+```
 
 To run as docker use environment variables to define configuration.
-
-    export ACI_EXPORTER_CONFIG=config.yaml;docker run -p 9643:9643  aci-exporter
+```shell
+export ACI_EXPORTER_CONFIG=config.yaml;docker run -p 9643:9643  aci-exporter
+```
 
 # Acknowledgements
 

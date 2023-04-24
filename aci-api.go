@@ -452,7 +452,7 @@ func (p aciAPI) extractClassQueriesData(data string, classQuery *ClassQuery, mv 
 		match := arrayExtension.FindStringSubmatch(mv.ValueName)
 		if len(match) > 0 {
 
-			// match is an string array of parsed if the .[regexp]. is part of the string
+			// match is a string array of parsed if the .[regexp]. is part of the string
 			// 0: the original string
 			// 1: stage1 all before .[
 			// 2: the child_name between []
@@ -538,7 +538,7 @@ func (p aciAPI) extractClassQueriesData(data string, classQuery *ClassQuery, mv 
 			metric.Labels = make(map[string]string)
 			addLabels(classQuery.Labels, classQuery.StaticLabels, value.String(), metric)
 
-			// get the merics value
+			// get the metrics value
 			metric.Value = p.toFloatTransform(gjson.Get(value.String(), mv.ValueName).Str, mv)
 
 			// Post calculation on the value
@@ -615,11 +615,21 @@ func (p aciAPI) toFloat(value string) float64 {
 }
 
 func (p aciAPI) toFloatTransform(value string, mv ConfigMetric) float64 {
+	var transformedValue = value
+	if len(mv.ValueRegexTransform) != 0 {
+		re := regexpcache.MustCompile(mv.ValueRegexTransform)
+		match := re.FindStringSubmatch(value)
+		if len(match) != 0 {
+			transformedValue = match[1]
+		}
+	}
+
 	if len(mv.ValueTransform) != 0 {
-		if val, ok := mv.ValueTransform[value]; ok {
+		if val, ok := mv.ValueTransform[transformedValue]; ok {
 			return val
 		}
 	}
-	return p.toFloat(value)
+
+	return p.toFloat(transformedValue)
 
 }

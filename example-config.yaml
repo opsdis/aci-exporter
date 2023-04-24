@@ -88,6 +88,23 @@ class_queries:
         # The regex where the string enclosed in the P<xyz> is the label name
         regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/phys-\\[(?P<interface>[^\\]]+)\\]/"
 
+  vlans:
+    class_name: fvnsEncapBlk
+    metrics:
+      - name: vlans_from
+        value_name: fvnsEncapBlk.attributes.from
+        type: gauge
+        help: The from vlan
+        value_regex_transformation: "vlan-(.*)"
+      - name: vlans_to
+        value_name: fvnsEncapBlk.attributes.to
+        type: gauge
+        help: The to vlan
+        value_regex_transformation: "vlan-(.*)"
+    labels:
+      - property_name: fvnsEncapBlk.attributes.dn
+        regex: "^uni/infra/vlanns-\\[(?P<vlanns>.+)\\]-static/from-\\[(?P<from>.+)\\]-to-\\[(?P<to>.+)\\]"
+
   max_capacity:
     class_name: fvcapRule
     # Additional query parameters for the class query, must start with ? and be separated by &
