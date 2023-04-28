@@ -16,3 +16,5 @@
 build/
 .vscode/
 .idea/
+./config.yaml
+target/
