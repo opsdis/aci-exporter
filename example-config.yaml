@@ -68,6 +68,7 @@ class_queries:
           '25G':      25000000000
           '40G':      40000000000
           '100G':    100000000000
+          '400G':    400000000000
       - name: interface_oper_state
         # The field in the json that is used as the metric value, qualified path (gjson) under imdata
         value_name: ethpmPhysIf.attributes.operSt
