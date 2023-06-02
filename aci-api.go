@@ -189,6 +189,7 @@ func (p aciAPI) faults(ch chan []MetricDefinition) {
 			"fabric":    fmt.Sprintf("%v", p.ctx.Value("fabric")),
 		}).Error("faults not supported", err)
 		ch <- nil
+		return
 	}
 
 	metricDefinitionFaults := MetricDefinition{}
@@ -423,6 +424,7 @@ func (p aciAPI) getClassMetrics(ch chan []MetricDefinition, v *ClassQuery) {
 			"fabric":    fmt.Sprintf("%v", p.ctx.Value("fabric")),
 		}).Error(fmt.Sprintf("%s not supported", v.ClassName), err)
 		ch <- nil
+		return
 	}
 
 	// For each metrics in the config
