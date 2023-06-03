@@ -68,6 +68,7 @@ class_queries:
           '25G':      25000000000
           '40G':      40000000000
           '100G':    100000000000
+          '400G':    400000000000
       - name: interface_oper_state
         # The field in the json that is used as the metric value, qualified path (gjson) under imdata
         value_name: ethpmPhysIf.attributes.operSt
@@ -87,6 +88,30 @@ class_queries:
       - property_name: ethpmPhysIf.attributes.dn
         # The regex where the string enclosed in the P<xyz> is the label name
         regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/phys-\\[(?P<interface>[^\\]]+)\\]/"
+
+  uptime_topsystem:
+    class_name: topSystem
+    query_parameter: "?rsp-subtree-include=health"
+    metrics:
+      - name: uptime
+        type: counter
+        unit: seconds
+        value_name: topSystem.attributes.systemUpTime
+        value_regex_transformation: "([0-9].*):([0-2][0-9]):([0-6][0-9]):([0-6][0-9])\\..*"
+        value_calculation: "value1 * 86400 + value2 * 3600 + value3 * 60 + value4"
+    labels:
+      - property_name: topSystem.attributes.dn
+        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys"
+      - property_name: topSystem.attributes.state
+        regex: "^(?P<state>.*)"
+      - property_name: topSystem.attributes.oobMgmtAddr
+        regex: "^(?P<oobMgmtAddr>.*)"
+      - property_name: topSystem.attributes.name
+        regex: "^(?P<name>.*)"
+      - property_name: topSystem.attributes.role
+        regex: "^(?P<role>.*)"
+      - property_name: topSystem.attributes.systemUpTime
+        regex: "^(?P<uptime>.*)"
 
   vlans:
     class_name: fvnsEncapBlk
