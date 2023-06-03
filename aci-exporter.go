@@ -37,7 +37,6 @@ type loggingResponseWriter struct {
 	length     int
 }
 
-// Implement interface WriteHeader
 func (lrw *loggingResponseWriter) WriteHeader(code int) {
 	lrw.statusCode = code
 	lrw.ResponseWriter.WriteHeader(code)
@@ -214,32 +213,26 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 
 	aciName, metrics, err := api.CollectMetrics()
 
-	if err != nil {
-		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
-		w.Header().Set("Content-Length", "0")
+	commonLabels := make(map[string]string)
+	commonLabels["aci"] = aciName
+	commonLabels["fabric"] = fabric
 
-		lrw := loggingResponseWriter{ResponseWriter: w}
-		lrw.WriteHeader(503)
+	var bodyText = Metrics2Prometheus(metrics, api.metricPrefix, commonLabels, openmetrics)
+	if openmetrics {
+		w.Header().Set("Content-Type", "application/openmetrics-text; version=0.0.1; charset=utf-8")
 	} else {
-		commonLabels := make(map[string]string)
-		commonLabels["aci"] = aciName
-		commonLabels["fabric"] = fabric
-
-		var bodyText = Metrics2Prometheus(metrics, api.metricPrefix, commonLabels, openmetrics)
-		if openmetrics {
-			w.Header().Set("Content-Type", "application/openmetrics-text; version=0.0.1; charset=utf-8")
-		} else {
-			w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
-		}
-		w.Header().Set("Content-Length", strconv.Itoa(len(bodyText)))
-
-		lrw := loggingResponseWriter{ResponseWriter: w}
-		if bodyText == "" {
-			lrw.WriteHeader(404)
-		}
-
-		w.Write([]byte(bodyText))
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 	}
+	w.Header().Set("Content-Length", strconv.Itoa(len(bodyText)))
+
+	lrw := loggingResponseWriter{ResponseWriter: w}
+	if bodyText == "" {
+		lrw.WriteHeader(404)
+	}
+	if err != nil {
+		lrw.WriteHeader(503)
+	}
+	w.Write([]byte(bodyText))
 	return
 }
 
