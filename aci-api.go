@@ -635,6 +635,7 @@ func (p aciAPI) toFloat(value string) float64 {
 func (p aciAPI) toFloatTransform(value string, mv ConfigMetric) (float64, error) {
 
 	allValues := make([]string, 1)
+	allValueNames := make([]string, 1)
 
 	if len(mv.ValueRegexTransform) != 0 {
 		re, err := regexpcache.Compile(mv.ValueRegexTransform)
@@ -659,8 +660,18 @@ func (p aciAPI) toFloatTransform(value string, mv ConfigMetric) (float64, error)
 			}).Error("value_regex_transformation")
 			return 0.0, errors.New("expected regex did not return any values")
 		}
+
 		allValues = make([]string, len(match)-1)
+		allValueNames = make([]string, len(match)-1)
+
 		if len(match) != 0 {
+			// Get all regex named groups names
+			for index, expName := range re.SubexpNames() {
+				if index != 0 {
+					allValueNames[index-1] = expName
+				}
+			}
+			// Get all group values
 			for index, entry := range match {
 				if index != 0 {
 					allValues[index-1] = entry
@@ -689,15 +700,22 @@ func (p aciAPI) toFloatTransform(value string, mv ConfigMetric) (float64, error)
 		expression, _ := govaluate.NewEvaluableExpression(mv.ValueCalculation)
 		parameters := make(map[string]interface{}, len(allFloats))
 
-		if len(allFloats) == 1 {
+		if len(allFloats) == 1 && allValueNames[0] == "" {
+			// Manage single group where not a named group
 			parameters["value"] = allFloats[0]
 		} else {
+			// Manage multi groups
 			for index, valueEntry := range allFloats {
-				parameters[fmt.Sprintf("value%d", index+1)] = valueEntry
+				if allValueNames[index] == "" {
+					// If not a named group default to "value" postfix with group index
+					parameters[fmt.Sprintf("value%d", index+1)] = valueEntry
+				} else {
+					// If a named group
+					parameters[fmt.Sprintf("%s", allValueNames[index])] = valueEntry
+				}
 			}
 		}
 
-		//parameters["value"] = metric.Value //p.toFloat(gjson.Get(value.String(), mv.ValueName).Str)
 		result, err := expression.Evaluate(parameters)
 		if err != nil {
 			log.WithFields(log.Fields{

@@ -43,7 +43,7 @@ fabrics:
 #
 # ATTENTION
 # All queries might not work in your environment depending on the permission your API user is granted or if you
-# running against a real or simulated API environment.
+# are running against a real or simulated API environment.
 #
 
 # Class queries
@@ -310,10 +310,11 @@ class_queries:
     metrics:
       - name: infra_node
         # In this case we are not looking for a value just the labels for info
-        value_name: X
+        value_name:
         type: "counter"
         help: "Returns the info of the infrastructure apic node"
         unit: "info"
+        # Since this is an info metrics the value is always 1
         value_calculation: "1"
     labels:
       - property_name: infraWiNode.attributes.nodeName
@@ -412,8 +413,7 @@ qroup_class_queries:
         class_name: topSystem
         query_parameter: "?rsp-subtree-include=health"
         metrics:
-          -
-            value_name: topSystem.children.@reverse.0.healthInst.attributes.cur
+          - value_name: topSystem.children.@reverse.0.healthInst.attributes.cur
             value_calculation: "value / 100"
         labels:
           - property_name: topSystem.attributes.dn

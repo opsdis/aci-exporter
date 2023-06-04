@@ -363,6 +363,18 @@ class_queries:
         regex: "^(?P<role>.*)"
 ```
 
+In the above configuration the parameters are given fixed names, `value1` to `value4`. But it is also possible to name 
+the parameters in the same way it's done with labels, so called named regex groups.
+SO in the below example we name the first group to `days`, the second group to `hours` etc. And in the 
+`value_calculation` we reference the variables with the same name they are given in the `value_regex_transformation`.
+
+```yaml
+        value_regex_transformation: "(?P<days>[0-9].*):(?P<hours>[[0-2][0-9]):(?P<minutes>[[0-6][0-9]):(?P<seconds>[[0-6][0-9])\\..*"
+        value_calculation: "days * 86400 + hours * 3600 + minutes * 60 + seconds"
+```
+
+This increase the readability and makes it's easier to remember what the regex does.
+
 # Labels
 Since all queries are configurable metrics name and label definitions are up to the person doing the configuration.
 The recommendation is to follow the best practices for [Promethues](https://prometheus.io/docs/practices/naming/).
