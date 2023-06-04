@@ -70,7 +70,7 @@ func newAciAPI(ctx context.Context, fabricConfig Fabric, configQueries AllQuerie
 		configQueries:         executeQueries.ClassQueries,
 		configCompoundQueries: executeQueries.CompoundClassQueries,
 		configGroupQueries:    executeQueries.GroupClassQueries,
-		confgBuiltInQueries:   BuilitinQueries{},
+		confgBuiltInQueries:   BuiltinQueries{},
 	}
 
 	// Make sure all built in queries are handled
@@ -97,7 +97,7 @@ type aciAPI struct {
 	configQueries         ClassQueries
 	configCompoundQueries CompoundClassQueries
 	configGroupQueries    GroupClassQueries
-	confgBuiltInQueries   BuilitinQueries
+	confgBuiltInQueries   BuiltinQueries
 }
 
 // CollectMetrics Gather all aci metrics and return name of the aci fabric, slice of metrics and status of
