@@ -16,5 +16,5 @@
 build/
 .vscode/
 .idea/
-./config.yaml
+config*.yaml
 target/
