@@ -66,10 +66,14 @@ func main() {
 	flag.Int("p", viper.GetInt("port"), "The port to start on")
 	logFile := flag.String("logfile", viper.GetString("logfile"), "Set log file, default stdout")
 	logFormat := flag.String("logformat", viper.GetString("logformat"), "Set log format to text or json, default json")
-
 	config := flag.String("config", viper.GetString("config"), "Set configuration file, default config.yaml")
 	usage := flag.Bool("u", false, "Show usage")
 	writeConfig := flag.Bool("default", false, "Write default config")
+
+	cli := flag.Bool("cli", false, "Run single query")
+	class := flag.String("class", viper.GetString("class"), "The class name - only cli")
+	query := flag.String("query", viper.GetString("query"), "The query for the class - only cli")
+	fabric := flag.String("fabric", viper.GetString("fabric"), "The fabric name - only cli")
 
 	flag.Parse()
 
@@ -88,6 +92,12 @@ func main() {
 
 	if *usage {
 		flag.Usage()
+		os.Exit(0)
+	}
+
+	if *cli {
+		fmt.Printf("%s", cliQuery(fabric, class, query))
+
 		os.Exit(0)
 	}
 
@@ -174,6 +184,39 @@ func main() {
 		Addr:         ":" + strconv.Itoa(viper.GetInt("port")),
 	}
 	log.Fatal(s.ListenAndServe())
+}
+
+func cliQuery(fabric *string, class *string, query *string) string {
+	err := viper.ReadInConfig()
+	if err != nil {
+		log.Error("Configuration file not valid - ", err)
+		os.Exit(1)
+	}
+	username := viper.GetString(fmt.Sprintf("fabrics.%s.username", *fabric))
+	password := viper.GetString(fmt.Sprintf("fabrics.%s.password", *fabric))
+	apicControllers := viper.GetStringSlice(fmt.Sprintf("fabrics.%s.apic", *fabric))
+
+	fabricConfig := Fabric{Username: username, Password: password, Apic: apicControllers}
+	ctx := context.TODO()
+	con := *newAciConnction(ctx, fabricConfig)
+	err = con.login()
+	if err != nil {
+		fmt.Printf("Login error %s", err)
+		return ""
+	}
+	defer con.logout()
+	var data string
+
+	if string((*query)[0]) != "?" {
+		data, err = con.getByClassQuery(*class, fmt.Sprintf("?%s", *query))
+	} else {
+		data, err = con.getByClassQuery(*class, *query)
+	}
+
+	if err != nil {
+		fmt.Printf("Error %s", err)
+	}
+	return fmt.Sprintf("%s", string(data))
 }
 
 type HandlerInit struct {
