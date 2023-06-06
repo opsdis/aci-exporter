@@ -88,7 +88,7 @@ A metrics and label value is some part of the json returned by a query. The key 
 The aci-exporter use [Gjson](https://github.com/tidwall/gjson) for parsing the metrics value and the label value. 
 To get the state metrics value for the class ethpmPhysIf the parsing expression would be `ethpmPhysIf.attributes.operSt`. 
 
-There are one addition to the Gjson syntax, and it's related to arrays returning objects.
+There are one addition to the Gjson syntax, and it's related to array's returning objects.
 
 The first example is for an array returning different kind of objects. A good example from the APIC api is the returning 
 of children, like the following query:
@@ -410,7 +410,30 @@ If there is multiple apic urls configured the exporter will use the first apic i
 All configuration properties can be set by using environment variables. The prefix is `ACI_EXPORTER_` and property 
 must be in uppercase. So to set the property `port` with an environment variable `ACI_EXPORTER_PORT=7121`. 
 
-# Openmetrics format
+# Metrics output
+The metrics created by the aci-exporter is controlled by the following attributes `metrics` section of the configuration.
+
+- `name` the name of the metric
+- `type` the type of the metric, if not set it will default to gauge. If the type is a counter the metric name will be
+postfix with `_total`
+- `unit` a base unit like bytes, seconds etc. If defined the metrics name will be postfix with the unit
+- `help` the description text of the metrics, if not set it will default to `Missing description` 
+
+With the following settings:
+```yaml
+    metrics:
+      - name: uptime
+        type: counter
+        unit: seconds
+        help: The uptime since boot
+```
+The metric output will be like:
+```yaml
+# HELP aci_uptime_seconds_total The uptime since boot
+# TYPE aci_uptime_seconds_total counter
+aci_uptime_seconds_total{.......} 98657
+```
+## Openmetrics format
 The exporter support [openmetrics](https://openmetrics.io/) format. This is done by adding the following accept header to the request:
 ```
 "Accept: application/openmetrics-text"

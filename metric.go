@@ -84,16 +84,25 @@ func Metrics2Prometheus(metrics []MetricDefinition, prefix string, commonLabels 
 		}
 
 		if len(metricDefinition.Metrics) > 0 {
-			promFormat = promFormat + fmt.Sprintf("# HELP %s%s %s\n", prefix, metricName, metricDefinition.Description.Help)
+			if metricDefinition.Description.Help == "" {
+				promFormat = promFormat + fmt.Sprintf("# HELP %s%s %s\n", prefix, metricName, "Missing description")
+			} else {
+				promFormat = promFormat + fmt.Sprintf("# HELP %s%s %s\n", prefix, metricName, metricDefinition.Description.Help)
+			}
+
+			promType := "gauge"
+			if metricDefinition.Description.Type != "" {
+				promType = metricDefinition.Description.Type
+			}
 			if openmetrics {
 				if strings.HasSuffix(metricName, "_info") {
 					promFormat = promFormat + fmt.Sprintf("# TYPE %s%s %s\n", prefix, metricName, "info")
 				} else {
-					promFormat = promFormat + fmt.Sprintf("# TYPE %s%s %s\n", prefix, metricName, metricDefinition.Description.Type)
+					promFormat = promFormat + fmt.Sprintf("# TYPE %s%s %s\n", prefix, metricName, promType)
 				}
 				promFormat = promFormat + fmt.Sprintf("# UNIT %s%s %s\n", prefix, metricName, metricDefinition.Description.Unit)
 			} else {
-				promFormat = promFormat + fmt.Sprintf("# TYPE %s%s %s\n", prefix, metricName, metricDefinition.Description.Type)
+				promFormat = promFormat + fmt.Sprintf("# TYPE %s%s %s\n", prefix, metricName, promType)
 			}
 
 			for _, metric := range metricDefinition.Metrics {
