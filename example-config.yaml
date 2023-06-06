@@ -20,7 +20,7 @@ fabrics:
     # Apic password
     password: bar
     # The available apic controllers
-    # The aci-exporter will use the first apic it can successfully login to, starting with the first in the list
+    # The aci-exporter will use the first apic it can successfully log in to, starting with the first in the list
     apic:
       - https://apic1
       - https://apic2
@@ -38,7 +38,15 @@ fabrics:
 #  read_timeout: 0
 #  write_timeout: 0
 
-# The query sections define queries that should be ran by all profiles
+# Define the output format should be in openmetrics format - deprecated from future version after 0.4.0, use below metric_format
+#openmetrics: true
+metric_format:
+  # Output in openmetrics format, default false
+  openmetrics: false
+  # Transform all label keys to lower case format, default false. E.g. oobMgmtAddr will be oobmgmtaddr
+  label_key_to_lower_case: false
+  # Transform all label keys to snake case format, default false. E.g. oobMgmtAddr will be oob_mgmt_addr
+  label_key_to_snake_case: false
 
 #
 # ATTENTION

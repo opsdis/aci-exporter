@@ -216,7 +216,7 @@ func cliQuery(fabric *string, class *string, query *string) string {
 	if err != nil {
 		fmt.Printf("Error %s", err)
 	}
-	return fmt.Sprintf("%s", string(data))
+	return fmt.Sprintf("%s", data)
 }
 
 type HandlerInit struct {
@@ -227,7 +227,7 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 
 	openmetrics := false
 	// Check accept header for open metrics
-	if r.Header.Get("Accept") == "application/openmetrics-text" || viper.GetBool("openmetrics") {
+	if r.Header.Get("Accept") == "application/openmetrics-text" || viper.GetBool("openmetrics") || viper.GetBool("metric_format.openmetrics") {
 		openmetrics = true
 	}
 
@@ -260,7 +260,9 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 	commonLabels["aci"] = aciName
 	commonLabels["fabric"] = fabric
 
-	var bodyText = Metrics2Prometheus(metrics, api.metricPrefix, commonLabels, openmetrics)
+	metricsFormat := NewMetricFormat(openmetrics, viper.GetBool("metric_format.label_key_to_lower_case"),
+		viper.GetBool("metric_format.label_key_to_snake_case"))
+	var bodyText = Metrics2Prometheus(metrics, api.metricPrefix, commonLabels, metricsFormat)
 	if openmetrics {
 		w.Header().Set("Content-Type", "application/openmetrics-text; version=0.0.1; charset=utf-8")
 	} else {
