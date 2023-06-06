@@ -17,8 +17,8 @@ type ClassQueries map[string]*ClassQuery
 type CompoundClassQueries map[string]*CompoundClassQuery
 type GroupClassQueries map[string]*GroupClassQuery
 
-// Builtin queries named and point to a function to execute
-type BuilitinQueries map[string]func(chan []MetricDefinition)
+// BuiltinQueries BuiltinQueries queries named and point to a function to execute
+type BuiltinQueries map[string]func(chan []MetricDefinition)
 
 type AllQueries struct {
 	ClassQueries         ClassQueries

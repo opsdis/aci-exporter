@@ -19,24 +19,6 @@ import (
 	"strings"
 )
 
-/*
-// Metric is a Promethues structure of the data
-type Metric struct {
-	Name        string
-	Value       float64
-	Labels      map[string]string
-	Timestamp   float64
-	State       int
-	Description MetricDesc
-}
-
-// MetricDesc the Promethues help and type text
-type MetricDesc struct {
-	Help string
-	Type string
-}
-*/
-
 type MetricDefinition struct {
 	Name        string // the name of the metrics
 	Metrics     []Metric
@@ -102,16 +84,16 @@ func Metrics2Prometheus(metrics []MetricDefinition, prefix string, commonLabels 
 		}
 
 		if len(metricDefinition.Metrics) > 0 {
-			promFormat = promFormat + fmt.Sprintf("# HELP %s %s\n", metricName, metricDefinition.Description.Help)
+			promFormat = promFormat + fmt.Sprintf("# HELP %s%s %s\n", prefix, metricName, metricDefinition.Description.Help)
 			if openmetrics {
 				if strings.HasSuffix(metricName, "_info") {
-					promFormat = promFormat + fmt.Sprintf("# TYPE %s %s\n", metricName, "info")
+					promFormat = promFormat + fmt.Sprintf("# TYPE %s%s %s\n", prefix, metricName, "info")
 				} else {
-					promFormat = promFormat + fmt.Sprintf("# TYPE %s %s\n", metricName, metricDefinition.Description.Type)
+					promFormat = promFormat + fmt.Sprintf("# TYPE %s%s %s\n", prefix, metricName, metricDefinition.Description.Type)
 				}
-				promFormat = promFormat + fmt.Sprintf("# UNIT %s %s\n", metricName, metricDefinition.Description.Unit)
+				promFormat = promFormat + fmt.Sprintf("# UNIT %s%s %s\n", prefix, metricName, metricDefinition.Description.Unit)
 			} else {
-				promFormat = promFormat + fmt.Sprintf("# TYPE %s %s\n", metricName, metricDefinition.Description.Type)
+				promFormat = promFormat + fmt.Sprintf("# TYPE %s%s %s\n", prefix, metricName, metricDefinition.Description.Type)
 			}
 
 			for _, metric := range metricDefinition.Metrics {

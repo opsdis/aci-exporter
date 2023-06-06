@@ -16,6 +16,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -69,7 +70,7 @@ func newAciAPI(ctx context.Context, fabricConfig Fabric, configQueries AllQuerie
 		configQueries:         executeQueries.ClassQueries,
 		configCompoundQueries: executeQueries.CompoundClassQueries,
 		configGroupQueries:    executeQueries.GroupClassQueries,
-		confgBuiltInQueries:   BuilitinQueries{},
+		confgBuiltInQueries:   BuiltinQueries{},
 	}
 
 	// Make sure all built in queries are handled
@@ -84,7 +85,6 @@ func newAciAPI(ctx context.Context, fabricConfig Fabric, configQueries AllQuerie
 	} else {
 		// If query parameter queries is NOT used, include all
 		api.confgBuiltInQueries["faults"] = api.faults
-		// Add all other builtin
 	}
 
 	return api
@@ -97,28 +97,31 @@ type aciAPI struct {
 	configQueries         ClassQueries
 	configCompoundQueries CompoundClassQueries
 	configGroupQueries    GroupClassQueries
-	confgBuiltInQueries   BuilitinQueries
+	confgBuiltInQueries   BuiltinQueries
 }
 
 // CollectMetrics Gather all aci metrics and return name of the aci fabric, slice of metrics and status of
 // successful login
 func (p aciAPI) CollectMetrics() (string, []MetricDefinition, error) {
+	var metrics []MetricDefinition
 	start := time.Now()
 
 	err := p.connection.login()
 	defer p.connection.logout()
 
 	if err != nil {
-		return "", nil, err
+		metrics = append(metrics, *p.up(0.0))
+		return "", metrics, err
 	}
 
 	aciName, err := p.getAciName()
 	if err != nil {
-		return "", nil, err
+		metrics = append(metrics, *p.up(0.0))
+		return "", metrics, err
 	}
 
 	// Hold all metrics created during the session
-	var metrics []MetricDefinition
+
 	ch := make(chan []MetricDefinition)
 
 	// Built-in
@@ -139,7 +142,7 @@ func (p aciAPI) CollectMetrics() (string, []MetricDefinition, error) {
 
 	end := time.Since(start)
 	metrics = append(metrics, *p.scrape(end.Seconds()))
-
+	metrics = append(metrics, *p.up(1.0))
 	log.WithFields(log.Fields{
 		"requestid": p.ctx.Value("requestid"),
 		"exec_time": end.Microseconds(),
@@ -161,6 +164,24 @@ func (p aciAPI) scrape(seconds float64) *MetricDefinition {
 	metric := Metric{}
 	metric.Labels = make(map[string]string)
 	metric.Value = seconds
+
+	metricDefinition.Metrics = append(metricDefinition.Metrics, metric)
+
+	return &metricDefinition
+}
+
+func (p aciAPI) up(state float64) *MetricDefinition {
+	metricDefinition := MetricDefinition{}
+	metricDefinition.Name = "up"
+	metricDefinition.Description = MetricDesc{
+		Help: "The connection state 1=UP, 0=DOWN",
+		Type: "gauge",
+	}
+	metricDefinition.Metrics = []Metric{}
+
+	metric := Metric{}
+	metric.Labels = make(map[string]string)
+	metric.Value = state
 
 	metricDefinition.Metrics = append(metricDefinition.Metrics, metric)
 
@@ -526,9 +547,12 @@ func (p aciAPI) extractClassQueriesData(data string, classQuery *ClassQuery, mv 
 						}
 
 						// extract the metrics value
-						metric.Value = p.toFloatTransform(gjson.Get(string(childJson), mvLocal.ValueName).Str, mvLocal)
-						valueReCalculation(mv, &metric)
+						value, err := p.toFloatTransform(gjson.Get(string(childJson), mvLocal.ValueName).Str, mvLocal)
+						if err != nil {
+							continue
+						}
 
+						metric.Value = value
 						metrics = append(metrics, metric)
 					}
 				}
@@ -542,27 +566,18 @@ func (p aciAPI) extractClassQueriesData(data string, classQuery *ClassQuery, mv 
 			addLabels(classQuery.Labels, classQuery.StaticLabels, value.String(), metric)
 
 			// get the metrics value
-			metric.Value = p.toFloatTransform(gjson.Get(value.String(), mv.ValueName).Str, mv)
+			value, err := p.toFloatTransform(gjson.Get(value.String(), mv.ValueName).Str, mv)
+			if err != nil {
+				return false
+			}
 
-			// Post calculation on the value
-			valueReCalculation(mv, &metric)
-
+			metric.Value = value
 			metrics = append(metrics, metric)
 		}
 
 		return true
 	})
 	return metrics
-}
-
-func valueReCalculation(mv ConfigMetric, metric *Metric) {
-	if mv.ValueCalculation != "" {
-		expression, _ := govaluate.NewEvaluableExpression(mv.ValueCalculation)
-		parameters := make(map[string]interface{}, 8)
-		parameters["value"] = metric.Value //p.toFloat(gjson.Get(value.String(), mv.ValueName).Str)
-		result, _ := expression.Evaluate(parameters)
-		metric.Value = result.(float64)
-	}
 }
 
 func addLabels(v []ConfigLabels, sv []StaticLabels, json string, metric Metric) {
@@ -617,22 +632,104 @@ func (p aciAPI) toFloat(value string) float64 {
 	return rate
 }
 
-func (p aciAPI) toFloatTransform(value string, mv ConfigMetric) float64 {
-	var transformedValue = value
+func (p aciAPI) toFloatTransform(value string, mv ConfigMetric) (float64, error) {
+
+	allValues := make([]string, 1)
+	allValueNames := make([]string, 1)
+
 	if len(mv.ValueRegexTransform) != 0 {
-		re := regexpcache.MustCompile(mv.ValueRegexTransform)
+		re, err := regexpcache.Compile(mv.ValueRegexTransform)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"error":                      err,
+				"name":                       mv.Name,
+				"value_name":                 mv.ValueName,
+				"value_regex_transformation": mv.ValueRegexTransform,
+				"value_calculation":          mv.ValueCalculation,
+			}).Error("value_regex_transformation")
+			return 0.0, err
+		}
 		match := re.FindStringSubmatch(value)
+		if match == nil {
+			log.WithFields(log.Fields{
+				"error":                      "expected regex did not return any values",
+				"name":                       mv.Name,
+				"value_name":                 mv.ValueName,
+				"value_regex_transformation": mv.ValueRegexTransform,
+				"value_calculation":          mv.ValueCalculation,
+			}).Error("value_regex_transformation")
+			return 0.0, errors.New("expected regex did not return any values")
+		}
+
+		allValues = make([]string, len(match)-1)
+		allValueNames = make([]string, len(match)-1)
+
 		if len(match) != 0 {
-			transformedValue = match[1]
+			// Get all regex named groups names
+			for index, expName := range re.SubexpNames() {
+				if index != 0 {
+					allValueNames[index-1] = expName
+				}
+			}
+			// Get all group values
+			for index, entry := range match {
+				if index != 0 {
+					allValues[index-1] = entry
+				}
+			}
+		}
+	} else {
+		allValues[0] = value
+	}
+
+	// Do value transformations
+	if len(mv.ValueTransform) != 0 && len(allValues) != 0 {
+		for index, valueEntry := range allValues {
+			if val, ok := mv.ValueTransform[valueEntry]; ok {
+				allValues[index] = fmt.Sprintf("%f", val)
+			}
 		}
 	}
 
-	if len(mv.ValueTransform) != 0 {
-		if val, ok := mv.ValueTransform[transformedValue]; ok {
-			return val
-		}
+	allFloats := make([]float64, len(allValues))
+	for index, entry := range allValues {
+		allFloats[index] = p.toFloat(entry)
 	}
 
-	return p.toFloat(transformedValue)
+	if mv.ValueCalculation != "" && len(allValues) != 0 {
+		expression, _ := govaluate.NewEvaluableExpression(mv.ValueCalculation)
+		parameters := make(map[string]interface{}, len(allFloats))
 
+		if len(allFloats) == 1 && allValueNames[0] == "" {
+			// Manage single group where not a named group
+			parameters["value"] = allFloats[0]
+		} else {
+			// Manage multi groups
+			for index, valueEntry := range allFloats {
+				if allValueNames[index] == "" {
+					// If not a named group default to "value" postfix with group index
+					parameters[fmt.Sprintf("value%d", index+1)] = valueEntry
+				} else {
+					// If a named group
+					parameters[fmt.Sprintf("%s", allValueNames[index])] = valueEntry
+				}
+			}
+		}
+
+		result, err := expression.Evaluate(parameters)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"error":                      err,
+				"name":                       mv.Name,
+				"value_name":                 mv.ValueName,
+				"value_regex_transformation": mv.ValueRegexTransform,
+				"value_calculation":          mv.ValueCalculation,
+			}).Error("value_calculation")
+			return 0.0, err
+
+		}
+		allFloats[0] = result.(float64)
+	}
+
+	return allFloats[0], nil
 }

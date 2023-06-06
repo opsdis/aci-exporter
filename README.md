@@ -258,8 +258,13 @@ aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMVoltStats",fabric="m
 # HELP scrape_duration_seconds The duration, in seconds, of the last scrape of the fabric
 # TYPE scrape_duration_seconds gauge
 aci_scrape_duration_seconds{aci="VBDC-Fabric1",fabric="miradot"} 0.116875019
-
+# HELP up The connection state 1=UP, 0=DOWN
+# TYPE up gauge
+aci_up{aci="ACI Fabric1",fabric="cisco_sandbox"} 1
 ```
+The last two metrics, `aci_scrape_duration_seconds` and `aci_up` are built into the exporter. The `aci_up`, new since 0.4.0,
+while return 1 if the export could connect with the apic and 0 in all other fail situations.
+
 # Metrics transformations
 In the query configuration the attribute `value_name` define the entity in the response that will be used as a value 
 for the metrics. Prometheus can only manage metrics value of the type float, so all values must be transformed to 
@@ -319,8 +324,56 @@ It is also possible to recalculate a metrics value using `value_calculation`. Li
 ```yaml
     value_calculation: "value / 100"
 ```
-
+The value_calculation use the [govaluate](https://github.com/Knetic/govaluate) for arithmetic/string expressions.
 >The `value` is the named variable for the metric value and can not be named anything else.
+
+## Value transformations and value calculation with multiple and named values (new in version v0.4.0)
+In some use cases it is a need to parse multiple value from a string to calculate a metrics value.
+A good example is what is the uptime reported by the query on class `topSystem` with the query_parameter 
+`?rsp-subtree-include=health`. The uptime is in the property `topSystem.attributes.systemUpTime`. The value is expressed 
+with the format of `07:17:00:15.000`, meaning uptime is 7 days, 17 hours, 0 minutes and 15 seconds. This not something 
+that Prometheus can understand as a value. The way to manage this is using the following steps:
+- In `value_regex_transformation` we need to parse multiple value using the following example regex, 
+`([0-9].*):([0-2][0-9]):([0-6][0-9]):([0-6][0-9])\\..*`. For each () we get a match resulting in 4 values. These are named
+`value1` to `value4`.
+- In the `value_calculation` the parameters from the above can now be used to calculate the uptime in seconds using  
+the expression `value1 * 86400 + value2 * 3600 + value3 * 60 + value4`
+
+The complete configuration example:
+```yaml
+class_queries:
+  uptime_topsystem:
+    class_name: topSystem
+    query_parameter: "?rsp-subtree-include=health"
+    metrics:
+      - name: uptime
+        value_name: topSystem.attributes.systemUpTime
+        value_regex_transformation: "([0-9].*):([0-2][0-9]):([0-6][0-9]):([0-6][0-9])\\..*"
+        value_calculation: "value1 * 86400 + value2 * 3600 + value3 * 60 + value4"
+    labels:
+      - property_name: topSystem.attributes.dn
+        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys"
+      - property_name: topSystem.attributes.state
+        regex: "^(?P<state>.*)"
+      - property_name: topSystem.attributes.oobMgmtAddr
+        regex: "^(?P<oobMgmtAddr>.*)"
+      - property_name: topSystem.attributes.name
+        regex: "^(?P<name>.*)"
+      - property_name: topSystem.attributes.role
+        regex: "^(?P<role>.*)"
+```
+
+In the above configuration the parameters are given fixed names, `value1` to `value4`. But it is also possible to name 
+the parameters in the same way it's done with labels, so called named regex groups.
+In the below example we name the first group to `days`, the second group to `hours` etc. And in the 
+`value_calculation` we reference the variables with the same name they are given in the `value_regex_transformation`.
+
+```yaml
+        value_regex_transformation: "(?P<days>[0-9].*):(?P<hours>[[0-2][0-9]):(?P<minutes>[[0-6][0-9]):(?P<seconds>[[0-6][0-9])\\..*"
+        value_calculation: "days * 86400 + hours * 3600 + minutes * 60 + seconds"
+```
+
+This increase the readability and makes it's easier to remember what the regex does.
 
 # Labels
 Since all queries are configurable metrics name and label definitions are up to the person doing the configuration.
