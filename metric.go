@@ -15,6 +15,7 @@ package main
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -39,12 +40,41 @@ type MetricDesc struct {
 	Unit string
 }
 
+func NewMetricFormat(openmetrics bool, lowerCase bool, snakeCase bool) MetricFormat {
+	return MetricFormat{openmetrics: openmetrics, snakeCase: snakeCase, lowerCase: lowerCase}
+}
+
+type MetricFormat struct {
+	openmetrics bool
+	snakeCase   bool
+	lowerCase   bool
+}
+
+var matchFirstCap = regexp.MustCompile("(.)([A-Z][a-z]+)")
+var matchAllCap = regexp.MustCompile("([a-z0-9])([A-Z])")
+
+func toLowerLabels(key string, format MetricFormat) string {
+	if format.snakeCase {
+		return toSnakeCase(key)
+	}
+	if format.lowerCase {
+		return strings.ToLower(key)
+	}
+	return key
+}
+
+func toSnakeCase(str string) string {
+	snake := matchFirstCap.ReplaceAllString(str, "${1}_${2}")
+	snake = matchAllCap.ReplaceAllString(snake, "${1}_${2}")
+	return strings.ToLower(snake)
+}
+
 // Labels2Prometheus create a string of all labels, sorted by label name
-func (m Metric) Labels2Prometheus(commonLabels map[string]string) string {
+func (m Metric) Labels2Prometheus(commonLabels map[string]string, format MetricFormat) string {
 	// append all common maps
 	if len(commonLabels) != 0 {
 		for k, v := range commonLabels {
-			m.Labels[k] = v
+			m.Labels[toLowerLabels(k, format)] = v
 		}
 	}
 
@@ -60,7 +90,7 @@ func (m Metric) Labels2Prometheus(commonLabels map[string]string) string {
 	for _, k := range keys {
 		// Filter out empty labels
 		if m.Labels[k] != "" {
-			labelstr = labelstr + fmt.Sprintf("%s%s=\"%s\"", sep, k, m.Labels[k])
+			labelstr = labelstr + fmt.Sprintf("%s%s=\"%s\"", sep, toLowerLabels(k, format), m.Labels[k])
 			sep = ","
 		}
 	}
@@ -68,7 +98,7 @@ func (m Metric) Labels2Prometheus(commonLabels map[string]string) string {
 }
 
 // Metrics2Prometheus convert a slice of Metric to Prometheus text output
-func Metrics2Prometheus(metrics []MetricDefinition, prefix string, commonLabels map[string]string, openmetrics bool) string {
+func Metrics2Prometheus(metrics []MetricDefinition, prefix string, commonLabels map[string]string, format MetricFormat) string {
 	promFormat := ""
 
 	for _, metricDefinition := range metrics {
@@ -94,7 +124,7 @@ func Metrics2Prometheus(metrics []MetricDefinition, prefix string, commonLabels 
 			if metricDefinition.Description.Type != "" {
 				promType = metricDefinition.Description.Type
 			}
-			if openmetrics {
+			if format.openmetrics {
 				if strings.HasSuffix(metricName, "_info") {
 					promFormat = promFormat + fmt.Sprintf("# TYPE %s%s %s\n", prefix, metricName, "info")
 				} else {
@@ -106,11 +136,11 @@ func Metrics2Prometheus(metrics []MetricDefinition, prefix string, commonLabels 
 			}
 
 			for _, metric := range metricDefinition.Metrics {
-				promFormat = promFormat + fmt.Sprintf("%s%s{%s} %g\n", prefix, metricName, metric.Labels2Prometheus(commonLabels), metric.Value)
+				promFormat = promFormat + fmt.Sprintf("%s%s{%s} %g\n", prefix, metricName, metric.Labels2Prometheus(commonLabels, format), metric.Value)
 			}
 		}
 	}
-	if openmetrics {
+	if format.openmetrics {
 		promFormat = promFormat + "# EOF\n"
 	}
 	return promFormat
