@@ -433,13 +433,31 @@ The metric output will be like:
 # TYPE aci_uptime_seconds_total counter
 aci_uptime_seconds_total{.......} 98657
 ```
+## Metric output formatting
+There is a number of options to control the output format. The configuration related to the formatting 
+is defined in the `metric_format` section of the configuration file.
+
+```yaml
+metric_format:
+  # Output in openmetrics format, default false
+  openmetrics: false
+  # Transform all label keys to lower case format, default false. E.g. oobMgmtAddr will be oobmgmtaddr
+  label_key_to_lower_case: false
+  # Transform all label keys to snake case format, default false. E.g. oobMgmtAddr will be oob_mgmt_addr
+  label_key_to_snake_case: false
+```
+
+
 ## Openmetrics format
-The exporter support [openmetrics](https://openmetrics.io/) format. This is done by adding the following accept header to the request:
+The exporter support [openmetrics](https://openmetrics.io/) format. This is done by adding the following accept header 
+to the request:
 ```
 "Accept: application/openmetrics-text"
 ```
 The configuration property `openmetrics` set to `true` will result in that all request will have an openmetrics 
-response independent of the above header.
+response independent of the above header. 
+> The `openmetrics` configuration option will be deprecated in future version. To configure openmetrics output should 
+> be configured as described in section "Metric output formatting"  
 
 # Error handling
 Any critical errors between the exporter and the apic controller will return 503. This is currently related to login 
@@ -457,7 +475,7 @@ Any access failures to apic[s] are written to the log.
 go build -o build/aci-exporter  *.go
 ```
 
-## Run
+## Run exporter
 By default, the exporter will look for a configuration file called `config.yaml`. The directory search paths are:
 
 - Current directory
@@ -490,6 +508,14 @@ This should be a comma separated list of the query names in the config file. It 
 
 ```shell
 curl -s 'http://localhost:9643/probe?target=cisco_sandbox&queries=node_health,faults'
+```
+
+## Run in standalone query mode (beta and may change in future releases)
+It is possible to run the aci-exporter in a standalone query mode. This mode enable to run a APIC query against 
+a class and with query parameters. This can a help when exploring the data returned to determine labels and the metrics 
+value.
+```yaml
+aci-exporter --cli --fabric cisco_sandbox --class topSystem --query "rsp-subtree-include=health"  | jq
 ```
 
 # Internal metrics
