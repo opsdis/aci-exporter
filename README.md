@@ -327,7 +327,7 @@ It is also possible to recalculate a metrics value using `value_calculation`. Li
 The value_calculation use the [govaluate](https://github.com/Knetic/govaluate) for arithmetic/string expressions.
 >The `value` is the named variable for the metric value and can not be named anything else.
 
-## Value transformations and value calculation with multiple values (new in version v0.4.0)
+## Value transformations and value calculation with multiple and named values (new in version v0.4.0)
 In some use cases it is a need to parse multiple value from a string to calculate a metrics value.
 A good example is what is the uptime reported by the query on class `topSystem` with the query_parameter 
 `?rsp-subtree-include=health`. The uptime is in the property `topSystem.attributes.systemUpTime`. The value is expressed 
@@ -365,7 +365,7 @@ class_queries:
 
 In the above configuration the parameters are given fixed names, `value1` to `value4`. But it is also possible to name 
 the parameters in the same way it's done with labels, so called named regex groups.
-SO in the below example we name the first group to `days`, the second group to `hours` etc. And in the 
+In the below example we name the first group to `days`, the second group to `hours` etc. And in the 
 `value_calculation` we reference the variables with the same name they are given in the `value_regex_transformation`.
 
 ```yaml
