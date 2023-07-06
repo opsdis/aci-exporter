@@ -10,6 +10,8 @@ The exporter can return data both in the [Prometheus](https://prometheus.io/) an
 
 The metrics that are exported is configured by definitions of a query. The query can be of any supported ACI class.
 
+![Dashboard example](images/aci_obf.png)
+
 # How to configure queries
  
 The exporter provides three types of query configuration:
