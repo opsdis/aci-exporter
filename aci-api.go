@@ -498,13 +498,14 @@ func (p aciAPI) extractClassQueriesData(data string, classQuery *ClassQuery, mv 
 						metric.Labels = make(map[string]string)
 
 						mvLocal := ConfigMetric{
-							Name:             mv.Name,
-							ValueName:        childKey + match[3],
-							ValueCalculation: mv.ValueCalculation,
-							Unit:             mv.Unit,
-							Type:             mv.Type,
-							Help:             mv.Help,
-							ValueTransform:   mv.ValueTransform,
+							Name:                mv.Name,
+							ValueName:           childKey + match[3],
+							ValueCalculation:    mv.ValueCalculation,
+							Unit:                mv.Unit,
+							Type:                mv.Type,
+							Help:                mv.Help,
+							ValueTransform:      mv.ValueTransform,
+							ValueRegexTransform: mv.ValueRegexTransform,
 						}
 
 						// Add all high level labels
