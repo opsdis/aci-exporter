@@ -137,6 +137,23 @@ class_queries:
       - property_name: fvnsEncapBlk.attributes.dn
         regex: "^uni/infra/vlanns-\\[(?P<vlanns>.+)\\]-static/from-\\[(?P<from>.+)\\]-to-\\[(?P<to>.+)\\]"
 
+  static_binding_info:
+    class_name: fvAEPg
+    query_parameter: "?rsp-subtree-include=required&rsp-subtree-class=fvRsPathAtt&rsp-subtree=children"
+    metrics:
+      - name: static_binding
+        value_name: fvAEPg.children.[fvRsPathAtt].attributes.encap
+        type: gauge
+        value_regex_transformation: "vlan-(.*)"
+        help: "Static binding info"
+    labels:
+      - property_name: fvAEPg.attributes.dn
+        regex: "^uni/tn-(?P<tenant>.*)/ap-(?P<app>.*)/epg-(?P<epg>.*)"
+      - property_name: fvAEPg.attributes.[.*].attributes.tDn
+        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/(protpaths|paths)-(?P<nodeid>[1-9][0-9].*)/pathep-\\[(?P<port>.+)\\]"
+      - property_name: fvAEPg.attributes.[.*].attributes.encap
+        regex: "^(?P<encap>.*)"
+
   max_capacity:
     class_name: fvcapRule
     # Additional query parameters for the class query, must start with ? and be separated by &
