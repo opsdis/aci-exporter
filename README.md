@@ -220,47 +220,47 @@ class name:
 curl -s 'http://localhost:9643/probe?target=XYZ&queries=ethpmdomstats'
 # HELP ethpmDOMStats_hiAlarm Returns hiAlarm
 # TYPE ethpmDOMStats_hiAlarm gauge
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMRxPwrStats",fabric="miradot",interface="eth1/1",laneid="1",nodeid="101",podid="1"} 0.999912
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTxPwrStats",fabric="miradot",interface="eth1/1",laneid="1",nodeid="101",podid="1"} 2.50005
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMCurrentStats",fabric="miradot",interface="eth1/1",laneid="1",nodeid="101",podid="1"} 90.000008
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTempStats",fabric="miradot",interface="eth1/1",laneid="1",nodeid="101",podid="1"} 90
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMVoltStats",fabric="miradot",interface="eth1/1",laneid="1",nodeid="101",podid="1"} 3.6
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMRxPwrStats",fabric="miradot",interface="eth1/2",laneid="1",nodeid="101",podid="1"} 3.0103
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTxPwrStats",fabric="miradot",interface="eth1/2",laneid="1",nodeid="101",podid="1"} 1.291741
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMCurrentStats",fabric="miradot",interface="eth1/2",laneid="1",nodeid="101",podid="1"} 100.000008
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTempStats",fabric="miradot",interface="eth1/2",laneid="1",nodeid="101",podid="1"} 90
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMVoltStats",fabric="miradot",interface="eth1/2",laneid="1",nodeid="101",podid="1"} 3.63
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMRxPwrStats",fabric="miradot",interface="eth1/48",laneid="1",nodeid="101",podid="1"} 3.000082
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTxPwrStats",fabric="miradot",interface="eth1/48",laneid="1",nodeid="101",podid="1"} 7.000024
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMCurrentStats",fabric="miradot",interface="eth1/48",laneid="1",nodeid="101",podid="1"} 110.000008
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTempStats",fabric="miradot",interface="eth1/48",laneid="1",nodeid="101",podid="1"} 100
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMVoltStats",fabric="miradot",interface="eth1/48",laneid="1",nodeid="101",podid="1"} 3.6
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMRxPwrStats",fabric="miradot",interface="eth1/1",laneid="1",nodeid="102",podid="1"} 3.000082
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTxPwrStats",fabric="miradot",interface="eth1/1",laneid="1",nodeid="102",podid="1"} 7.000024
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMCurrentStats",fabric="miradot",interface="eth1/1",laneid="1",nodeid="102",podid="1"} 110.000008
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTempStats",fabric="miradot",interface="eth1/1",laneid="1",nodeid="102",podid="1"} 100
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMVoltStats",fabric="miradot",interface="eth1/1",laneid="1",nodeid="102",podid="1"} 3.6
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMRxPwrStats",fabric="miradot",interface="eth1/2",laneid="1",nodeid="102",podid="1"} 3.0103
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTxPwrStats",fabric="miradot",interface="eth1/2",laneid="1",nodeid="102",podid="1"} 1.291741
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMCurrentStats",fabric="miradot",interface="eth1/2",laneid="1",nodeid="102",podid="1"} 100.000008
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTempStats",fabric="miradot",interface="eth1/2",laneid="1",nodeid="102",podid="1"} 90
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMVoltStats",fabric="miradot",interface="eth1/2",laneid="1",nodeid="102",podid="1"} 3.63
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMRxPwrStats",fabric="miradot",interface="eth1/48",laneid="1",nodeid="102",podid="1"} 3.000082
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTxPwrStats",fabric="miradot",interface="eth1/48",laneid="1",nodeid="102",podid="1"} 7.000024
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMCurrentStats",fabric="miradot",interface="eth1/48",laneid="1",nodeid="102",podid="1"} 110.000008
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTempStats",fabric="miradot",interface="eth1/48",laneid="1",nodeid="102",podid="1"} 100
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMVoltStats",fabric="miradot",interface="eth1/48",laneid="1",nodeid="102",podid="1"} 3.6
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMRxPwrStats",fabric="miradot",interface="eth1/3",laneid="1",nodeid="102",podid="1"} 1.000257
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTxPwrStats",fabric="miradot",interface="eth1/3",laneid="1",nodeid="102",podid="1"} -1.999707
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMCurrentStats",fabric="miradot",interface="eth1/3",laneid="1",nodeid="102",podid="1"} 17
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTempStats",fabric="miradot",interface="eth1/3",laneid="1",nodeid="102",podid="1"} 95
-aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMVoltStats",fabric="miradot",interface="eth1/3",laneid="1",nodeid="102",podid="1"} 3.9
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMRxPwrStats",fabric="XYZ",interface="eth1/1",laneid="1",nodeid="101",podid="1"} 0.999912
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTxPwrStats",fabric="XYZ",interface="eth1/1",laneid="1",nodeid="101",podid="1"} 2.50005
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMCurrentStats",fabric="XYZ",interface="eth1/1",laneid="1",nodeid="101",podid="1"} 90.000008
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTempStats",fabric="XYZ",interface="eth1/1",laneid="1",nodeid="101",podid="1"} 90
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMVoltStats",fabric="XYZ",interface="eth1/1",laneid="1",nodeid="101",podid="1"} 3.6
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMRxPwrStats",fabric="XYZ",interface="eth1/2",laneid="1",nodeid="101",podid="1"} 3.0103
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTxPwrStats",fabric="XYZ",interface="eth1/2",laneid="1",nodeid="101",podid="1"} 1.291741
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMCurrentStats",fabric="XYZ",interface="eth1/2",laneid="1",nodeid="101",podid="1"} 100.000008
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTempStats",fabric="XYZ",interface="eth1/2",laneid="1",nodeid="101",podid="1"} 90
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMVoltStats",fabric="XYZ",interface="eth1/2",laneid="1",nodeid="101",podid="1"} 3.63
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMRxPwrStats",fabric="XYZ",interface="eth1/48",laneid="1",nodeid="101",podid="1"} 3.000082
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTxPwrStats",fabric="XYZ",interface="eth1/48",laneid="1",nodeid="101",podid="1"} 7.000024
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMCurrentStats",fabric="XYZ",interface="eth1/48",laneid="1",nodeid="101",podid="1"} 110.000008
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTempStats",fabric="XYZ",interface="eth1/48",laneid="1",nodeid="101",podid="1"} 100
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMVoltStats",fabric="XYZ",interface="eth1/48",laneid="1",nodeid="101",podid="1"} 3.6
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMRxPwrStats",fabric="XYZ",interface="eth1/1",laneid="1",nodeid="102",podid="1"} 3.000082
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTxPwrStats",fabric="XYZ",interface="eth1/1",laneid="1",nodeid="102",podid="1"} 7.000024
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMCurrentStats",fabric="XYZ",interface="eth1/1",laneid="1",nodeid="102",podid="1"} 110.000008
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTempStats",fabric="XYZ",interface="eth1/1",laneid="1",nodeid="102",podid="1"} 100
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMVoltStats",fabric="XYZ",interface="eth1/1",laneid="1",nodeid="102",podid="1"} 3.6
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMRxPwrStats",fabric="XYZ",interface="eth1/2",laneid="1",nodeid="102",podid="1"} 3.0103
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTxPwrStats",fabric="XYZ",interface="eth1/2",laneid="1",nodeid="102",podid="1"} 1.291741
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMCurrentStats",fabric="XYZ",interface="eth1/2",laneid="1",nodeid="102",podid="1"} 100.000008
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTempStats",fabric="XYZ",interface="eth1/2",laneid="1",nodeid="102",podid="1"} 90
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMVoltStats",fabric="XYZ",interface="eth1/2",laneid="1",nodeid="102",podid="1"} 3.63
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMRxPwrStats",fabric="XYZ",interface="eth1/48",laneid="1",nodeid="102",podid="1"} 3.000082
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTxPwrStats",fabric="XYZ",interface="eth1/48",laneid="1",nodeid="102",podid="1"} 7.000024
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMCurrentStats",fabric="XYZ",interface="eth1/48",laneid="1",nodeid="102",podid="1"} 110.000008
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTempStats",fabric="XYZ",interface="eth1/48",laneid="1",nodeid="102",podid="1"} 100
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMVoltStats",fabric="XYZ",interface="eth1/48",laneid="1",nodeid="102",podid="1"} 3.6
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMRxPwrStats",fabric="XYZ",interface="eth1/3",laneid="1",nodeid="102",podid="1"} 1.000257
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTxPwrStats",fabric="XYZ",interface="eth1/3",laneid="1",nodeid="102",podid="1"} -1.999707
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMCurrentStats",fabric="XYZ",interface="eth1/3",laneid="1",nodeid="102",podid="1"} 17
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMTempStats",fabric="XYZ",interface="eth1/3",laneid="1",nodeid="102",podid="1"} 95
+aci_ethpmDOMStats_hiAlarm{aci="VBDC-Fabric1",class="ethpmDOMVoltStats",fabric="XYZ",interface="eth1/3",laneid="1",nodeid="102",podid="1"} 3.9
 # HELP scrape_duration_seconds The duration, in seconds, of the last scrape of the fabric
 # TYPE scrape_duration_seconds gauge
-aci_scrape_duration_seconds{aci="VBDC-Fabric1",fabric="miradot"} 0.116875019
+aci_scrape_duration_seconds{aci="VBDC-Fabric1",fabric="XYZ"} 0.116875019
 # HELP up The connection state 1=UP, 0=DOWN
 # TYPE up gauge
-aci_up{aci="ACI Fabric1",fabric="cisco_sandbox"} 1
+aci_up{aci="ACI Fabric1",fabric="XYZ"} 1
 ```
 The last two metrics, `aci_scrape_duration_seconds` and `aci_up` are built into the exporter. The `aci_up`, new since 0.4.0,
 while return 1 if the export could connect with the apic and 0 in all other fail situations.
