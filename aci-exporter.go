@@ -66,6 +66,7 @@ func main() {
 	flag.Int("p", viper.GetInt("port"), "The port to start on")
 	logFile := flag.String("logfile", viper.GetString("logfile"), "Set log file, default stdout")
 	logFormat := flag.String("logformat", viper.GetString("logformat"), "Set log format to text or json, default json")
+	logLevel := flag.String("loglevel", viper.GetString("loglevel"), "Set log log level, default info")
 	config := flag.String("config", viper.GetString("config"), "Set configuration file, default config.yaml")
 	usage := flag.Bool("u", false, "Show usage")
 	writeConfig := flag.Bool("default", false, "Write default config")
@@ -95,18 +96,27 @@ func main() {
 		os.Exit(0)
 	}
 
-	if *cli {
-		fmt.Printf("%s", cliQuery(fabric, class, query))
-
-		os.Exit(0)
+	if *logLevel != "" {
+		level, err := log.ParseLevel(*logLevel)
+		if err != nil {
+			log.Error(fmt.Sprintf("Not supported log level - %s", err))
+			os.Exit(1)
+		}
+		log.SetLevel(level)
 	}
 
 	if *logFile != "" {
 		f, err := os.OpenFile(*logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
-			log.Println(err)
+			log.Error(fmt.Sprintf("Error open logfile %s - %s", *logFile, err))
+			os.Exit(1)
 		}
 		log.SetOutput(f)
+	}
+
+	if *cli {
+		fmt.Printf("%s", cliQuery(fabric, class, query))
+		os.Exit(0)
 	}
 
 	if *writeConfig {
