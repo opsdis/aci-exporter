@@ -31,7 +31,7 @@ import (
 
 var arrayExtension = regexpcache.MustCompile("^(?P<stage_1>.*)\\.\\[(?P<child_name>.*)\\](?P<stage_2>.*)")
 
-func newAciAPI(ctx context.Context, fabricConfig Fabric, configQueries AllQueries, queryFilter string) *aciAPI {
+func newAciAPI(ctx context.Context, fabricConfig *Fabric, configQueries AllQueries, queryFilter string) *aciAPI {
 
 	executeQueries := configQueries
 	queryArray := strings.Split(queryFilter, ",")
@@ -307,12 +307,27 @@ func (p aciAPI) faults(ch chan []MetricDefinition) {
 }
 
 func (p aciAPI) getAciName() (string, error) {
-	data, err := p.connection.getByQuery("aci_name")
+	if p.connection.fabricConfig.AciName != "" {
+		return p.connection.fabricConfig.AciName, nil
+	}
+
+	data, err := p.connection.getByClassQuery("fabricNode", "?query-target-filter=eq(fabricNode.role,\"controller\")")
 	if err != nil {
 		return "", err
 	}
-
-	return gjson.Get(data, "imdata.0.infraCont.attributes.fbDmNm").Str, nil
+	allControllers := gjson.Get(data, "imdata.#.fabricNode.attributes.dn")
+	for _, controller := range allControllers.Array() {
+		dataBytes, err := p.connection.get("av", fmt.Sprintf("%s/api/mo/%s/av.json", p.connection.fabricConfig.Apic[*p.connection.activeController], controller.Str))
+		if err != nil {
+			continue
+		}
+		p.connection.fabricConfig.AciName = gjson.Get(string(dataBytes), "imdata.0.infraCont.attributes.fbDmNm").Str
+		break
+	}
+	if p.connection.fabricConfig.AciName != "" {
+		return p.connection.fabricConfig.AciName, nil
+	}
+	return "", fmt.Errorf("could not determine ACI name")
 }
 
 func (p aciAPI) configuredCompoundsMetrics(chall chan []MetricDefinition) {
