@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/umisama/go-regexpcache"
 	"strconv"
 	"strings"
 	"time"
@@ -26,7 +27,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"github.com/tidwall/gjson"
-	"github.com/umisama/go-regexpcache"
 )
 
 var arrayExtension = regexpcache.MustCompile("^(?P<stage_1>.*)\\.\\[(?P<child_name>.*)\\](?P<stage_2>.*)")
@@ -311,19 +311,13 @@ func (p aciAPI) getAciName() (string, error) {
 		return p.connection.fabricConfig.AciName, nil
 	}
 
-	data, err := p.connection.getByClassQuery("fabricNode", "?query-target-filter=eq(fabricNode.role,\"controller\")")
+	data, err := p.connection.getByClassQuery("infraCont", "?query-target=self")
+
 	if err != nil {
 		return "", err
 	}
-	allControllers := gjson.Get(data, "imdata.#.fabricNode.attributes.dn")
-	for _, controller := range allControllers.Array() {
-		dataBytes, err := p.connection.get("av", fmt.Sprintf("%s/api/mo/%s/av.json", p.connection.fabricConfig.Apic[*p.connection.activeController], controller.Str))
-		if err != nil {
-			continue
-		}
-		p.connection.fabricConfig.AciName = gjson.Get(string(dataBytes), "imdata.0.infraCont.attributes.fbDmNm").Str
-		break
-	}
+	p.connection.fabricConfig.AciName = gjson.Get(data, "imdata.#.infraCont.attributes.fbDmNm").Array()[0].Str
+
 	if p.connection.fabricConfig.AciName != "" {
 		return p.connection.fabricConfig.AciName, nil
 	}
