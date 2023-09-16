@@ -18,10 +18,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/umisama/go-regexpcache"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/umisama/go-regexpcache"
 
 	"github.com/Knetic/govaluate"
 	log "github.com/sirupsen/logrus"
