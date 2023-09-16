@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"net/http"
@@ -255,11 +256,24 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 	fabric := r.URL.Query().Get("target")
 	queries := r.URL.Query().Get("queries")
 
+	if fabric != strings.ToLower(fabric) {
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+		w.Header().Set("Content-Length", "0")
+		log.WithFields(log.Fields{
+			"fabric": fabric,
+		}).Warning("fabric target must be in lower case")
+		lrw := loggingResponseWriter{ResponseWriter: w}
+		lrw.WriteHeader(400)
+		return
+	}
+
 	// Check if a valid target
 	if !viper.IsSet(fmt.Sprintf("fabrics.%s", fabric)) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 		w.Header().Set("Content-Length", "0")
-
+		log.WithFields(log.Fields{
+			"fabric": fabric,
+		}).Warning("fabric target do not exists")
 		lrw := loggingResponseWriter{ResponseWriter: w}
 		lrw.WriteHeader(404)
 		return

@@ -405,6 +405,8 @@ The aci-exporter will attach the following labels to all metrics
 All attributes in the configuration has default values, except for the fabric and the different query sections.
 A fabric profile include the information specific to an ACI fabrics, like authentication and apic(s) url.
 
+> The name of the fabric profile MUST BE in lower case.
+
 > The user need to have admin read-only rights in the domain `All` to allow all kinds of queries.
 
 If there is multiple apic urls configured the exporter will use the first apic it can login to in the list.

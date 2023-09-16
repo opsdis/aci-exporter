@@ -6,6 +6,7 @@ config: config
 prefix: aci_
 
 # Profiles for different fabrics
+# The profile name MUST be in lower case
 fabrics:
   # This is the Cisco provided sandbox that is open for testing
   cisco_sandbox:
