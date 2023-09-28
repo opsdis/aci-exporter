@@ -22,16 +22,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/umisama/go-regexpcache"
+
 	"github.com/Knetic/govaluate"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"github.com/tidwall/gjson"
-	"github.com/umisama/go-regexpcache"
 )
 
 var arrayExtension = regexpcache.MustCompile("^(?P<stage_1>.*)\\.\\[(?P<child_name>.*)\\](?P<stage_2>.*)")
 
-func newAciAPI(ctx context.Context, fabricConfig Fabric, configQueries AllQueries, queryFilter string) *aciAPI {
+func newAciAPI(ctx context.Context, fabricConfig *Fabric, configQueries AllQueries, queryFilter string) *aciAPI {
 
 	executeQueries := configQueries
 	queryArray := strings.Split(queryFilter, ",")
@@ -307,12 +308,21 @@ func (p aciAPI) faults(ch chan []MetricDefinition) {
 }
 
 func (p aciAPI) getAciName() (string, error) {
-	data, err := p.connection.getByQuery("aci_name")
+	if p.connection.fabricConfig.AciName != "" {
+		return p.connection.fabricConfig.AciName, nil
+	}
+
+	data, err := p.connection.getByClassQuery("infraCont", "?query-target=self")
+
 	if err != nil {
 		return "", err
 	}
+	p.connection.fabricConfig.AciName = gjson.Get(data, "imdata.#.infraCont.attributes.fbDmNm").Array()[0].Str
 
-	return gjson.Get(data, "imdata.0.infraCont.attributes.fbDmNm").Str, nil
+	if p.connection.fabricConfig.AciName != "" {
+		return p.connection.fabricConfig.AciName, nil
+	}
+	return "", fmt.Errorf("could not determine ACI name")
 }
 
 func (p aciAPI) configuredCompoundsMetrics(chall chan []MetricDefinition) {

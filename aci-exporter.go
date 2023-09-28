@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"net/http"
@@ -156,13 +157,22 @@ func main() {
 		log.Error("Unable to decode compound_queries into struct - ", err)
 		os.Exit(1)
 	}
+
 	allQueries := AllQueries{
 		ClassQueries:         classQueries,
 		CompoundClassQueries: compoundClassQueries,
 		GroupClassQueries:    groupClassQueries,
 	}
 
-	handler := &HandlerInit{allQueries}
+	allFabrics := make(map[string]*Fabric)
+
+	err = viper.UnmarshalKey("fabrics", &allFabrics)
+	if err != nil {
+		log.Error("Unable to decode class_queries into struct - ", err)
+		os.Exit(1)
+	}
+
+	handler := &HandlerInit{allQueries, allFabrics}
 
 	// Create a Prometheus histogram for response time of the exporter
 	responseTime := promauto.NewHistogramVec(prometheus.HistogramOpts{
@@ -205,10 +215,11 @@ func cliQuery(fabric *string, class *string, query *string) string {
 	username := viper.GetString(fmt.Sprintf("fabrics.%s.username", *fabric))
 	password := viper.GetString(fmt.Sprintf("fabrics.%s.password", *fabric))
 	apicControllers := viper.GetStringSlice(fmt.Sprintf("fabrics.%s.apic", *fabric))
+	aciName := viper.GetString(fmt.Sprintf("fabrics.%s.aci_name", *fabric))
 
-	fabricConfig := Fabric{Username: username, Password: password, Apic: apicControllers}
+	fabricConfig := Fabric{Username: username, Password: password, Apic: apicControllers, AciName: aciName}
 	ctx := context.TODO()
-	con := *newAciConnction(ctx, fabricConfig)
+	con := *newAciConnction(ctx, &fabricConfig)
 	err = con.login()
 	if err != nil {
 		fmt.Printf("Login error %s", err)
@@ -231,6 +242,7 @@ func cliQuery(fabric *string, class *string, query *string) string {
 
 type HandlerInit struct {
 	AllQueries AllQueries
+	AllFabrics map[string]*Fabric
 }
 
 func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
@@ -244,25 +256,32 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 	fabric := r.URL.Query().Get("target")
 	queries := r.URL.Query().Get("queries")
 
+	if fabric != strings.ToLower(fabric) {
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+		w.Header().Set("Content-Length", "0")
+		log.WithFields(log.Fields{
+			"fabric": fabric,
+		}).Warning("fabric target must be in lower case")
+		lrw := loggingResponseWriter{ResponseWriter: w}
+		lrw.WriteHeader(400)
+		return
+	}
+
 	// Check if a valid target
 	if !viper.IsSet(fmt.Sprintf("fabrics.%s", fabric)) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 		w.Header().Set("Content-Length", "0")
-
+		log.WithFields(log.Fields{
+			"fabric": fabric,
+		}).Warning("fabric target do not exists")
 		lrw := loggingResponseWriter{ResponseWriter: w}
 		lrw.WriteHeader(404)
 		return
 	}
 
-	username := viper.GetString(fmt.Sprintf("fabrics.%s.username", fabric))
-	password := viper.GetString(fmt.Sprintf("fabrics.%s.password", fabric))
-	apicControllers := viper.GetStringSlice(fmt.Sprintf("fabrics.%s.apic", fabric))
-
-	fabricConfig := Fabric{Username: username, Password: password, Apic: apicControllers}
-
 	ctx := r.Context()
 	ctx = context.WithValue(ctx, "fabric", fabric)
-	api := *newAciAPI(ctx, fabricConfig, h.AllQueries, queries)
+	api := *newAciAPI(ctx, h.AllFabrics[fabric], h.AllQueries, queries)
 
 	aciName, metrics, err := api.CollectMetrics()
 

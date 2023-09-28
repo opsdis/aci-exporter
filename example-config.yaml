@@ -6,6 +6,7 @@ config: config
 prefix: aci_
 
 # Profiles for different fabrics
+# The profile name MUST be in lower case
 fabrics:
   # This is the Cisco provided sandbox that is open for testing
   cisco_sandbox:
@@ -24,6 +25,8 @@ fabrics:
     apic:
       - https://apic1
       - https://apic2
+    # Optional - The name of the aci cluster. If not set, aci-exporter will try to determine the name
+    aci_name: foobar
 
 # Http client settings used to access apic
 # Below is the default values, where 0 is no timeout

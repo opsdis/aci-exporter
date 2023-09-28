@@ -40,7 +40,7 @@ var responseTime = promauto.NewHistogramVec(prometheus.HistogramOpts{
 // AciConnection is the connection object
 type AciConnection struct {
 	ctx              context.Context
-	fabricConfig     Fabric
+	fabricConfig     *Fabric
 	activeController *int
 	URLMap           map[string]string
 	Headers          map[string]string
@@ -48,7 +48,7 @@ type AciConnection struct {
 	responseTime     *prometheus.HistogramVec
 }
 
-func newAciConnction(ctx context.Context, fabricConfig Fabric) *AciConnection {
+func newAciConnction(ctx context.Context, fabricConfig *Fabric) *AciConnection {
 	// Empty cookie jar
 	jar, _ := cookiejar.New(nil)
 
