@@ -283,15 +283,29 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 	ctx = context.WithValue(ctx, "fabric", fabric)
 	api := *newAciAPI(ctx, h.AllFabrics[fabric], h.AllQueries, queries)
 
+	start := time.Now()
 	aciName, metrics, err := api.CollectMetrics()
+	log.WithFields(log.Fields{
+		"requestid": ctx.Value("requestid"),
+		"exec_time": time.Since(start).Microseconds(),
+		"fabric":    fmt.Sprintf("%v", ctx.Value("fabric")),
+	}).Info("total query collection time")
 
 	commonLabels := make(map[string]string)
 	commonLabels["aci"] = aciName
 	commonLabels["fabric"] = fabric
 
+	start = time.Now()
 	metricsFormat := NewMetricFormat(openmetrics, viper.GetBool("metric_format.label_key_to_lower_case"),
 		viper.GetBool("metric_format.label_key_to_snake_case"))
 	var bodyText = Metrics2Prometheus(metrics, api.metricPrefix, commonLabels, metricsFormat)
+
+	log.WithFields(log.Fields{
+		"requestid": ctx.Value("requestid"),
+		"exec_time": time.Since(start).Microseconds(),
+		"fabric":    fmt.Sprintf("%v", ctx.Value("fabric")),
+	}).Info("processing metrics to prometheus exposition format")
+
 	if openmetrics {
 		w.Header().Set("Content-Type", "application/openmetrics-text; version=0.0.1; charset=utf-8")
 	} else {
