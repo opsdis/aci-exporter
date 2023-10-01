@@ -17,6 +17,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net/http/pprof"
 	"os"
 	"strconv"
 	"strings"
@@ -71,6 +72,7 @@ func main() {
 	config := flag.String("config", viper.GetString("config"), "Set configuration file, default config.yaml")
 	usage := flag.Bool("u", false, "Show usage")
 	writeConfig := flag.Bool("default", false, "Write default config")
+	profiling := flag.Bool("pprof", false, "Enable profiling")
 
 	cli := flag.Bool("cli", false, "Run single query")
 	class := flag.String("class", viper.GetString("class"), "The class name - only cli")
@@ -195,6 +197,17 @@ func main() {
 			EnableOpenMetrics: true,
 		},
 	))
+	// profiling endpoint
+	if *profiling {
+		log.Info(fmt.Sprintf("Starting profiling endpoint on %s", viper.GetString("pport")))
+		mux := http.NewServeMux()
+		mux.HandleFunc("/debug/pprof/", pprof.Index)
+		mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+		go func() { log.Fatal(http.ListenAndServe(viper.GetString("pport"), mux)) }()
+	}
 
 	log.Info(fmt.Sprintf("%s starting on port %d", ExporterName, viper.GetInt("port")))
 	log.Info(fmt.Sprintf("Read timeout %s, Write timeout %s", viper.GetDuration("httpserver.read_timeout")*time.Second, viper.GetDuration("httpserver.write_timeout")*time.Second))
