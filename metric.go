@@ -15,10 +15,11 @@ package main
 
 import (
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"regexp"
 	"sort"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type MetricDefinition struct {
