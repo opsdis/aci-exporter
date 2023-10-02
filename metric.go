@@ -15,6 +15,7 @@ package main
 
 import (
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"regexp"
 	"sort"
 	"strings"
@@ -98,7 +99,7 @@ func (m Metric) Labels2Prometheus(commonLabels map[string]string, format MetricF
 }
 
 // Metrics2Prometheus convert a slice of Metric to Prometheus text output
-func Metrics2Prometheus(metrics []MetricDefinition, prefix string, commonLabels map[string]string, format MetricFormat) string {
+func Metrics2PrometheusOLD(metrics []MetricDefinition, prefix string, commonLabels map[string]string, format MetricFormat) string {
 	promFormat := ""
 
 	for _, metricDefinition := range metrics {
@@ -144,4 +145,60 @@ func Metrics2Prometheus(metrics []MetricDefinition, prefix string, commonLabels 
 		promFormat = promFormat + "# EOF\n"
 	}
 	return promFormat
+}
+
+// Metrics2Prometheus convert a slice of Metric to Prometheus text output
+func Metrics2Prometheus(metrics []MetricDefinition, prefix string, commonLabels map[string]string, format MetricFormat) string {
+	var builder strings.Builder
+
+	for _, metricDefinition := range metrics {
+
+		// only format if the metrics slice include items
+		metricName := metricDefinition.Name
+		if metricDefinition.Description.Unit != "" {
+			metricName = metricDefinition.Name + "_" + metricDefinition.Description.Unit
+		}
+
+		if metricDefinition.Description.Type == "counter" && metricDefinition.Description.Unit != "info" {
+			metricName = metricName + "_total"
+		}
+
+		if len(metricDefinition.Metrics) > 0 {
+			if metricDefinition.Description.Help == "" {
+				addText(&builder, fmt.Sprintf("# HELP %s%s %s\n", prefix, metricName, "Missing description"))
+			} else {
+				addText(&builder, fmt.Sprintf("# HELP %s%s %s\n", prefix, metricName, metricDefinition.Description.Help))
+			}
+
+			promType := "gauge"
+			if metricDefinition.Description.Type != "" {
+				promType = metricDefinition.Description.Type
+			}
+			if format.openmetrics {
+				if strings.HasSuffix(metricName, "_info") {
+					addText(&builder, fmt.Sprintf("# TYPE %s%s %s\n", prefix, metricName, "info"))
+				} else {
+					addText(&builder, fmt.Sprintf("# TYPE %s%s %s\n", prefix, metricName, promType))
+				}
+				addText(&builder, fmt.Sprintf("# UNIT %s%s %s\n", prefix, metricName, metricDefinition.Description.Unit))
+			} else {
+				addText(&builder, fmt.Sprintf("# TYPE %s%s %s\n", prefix, metricName, promType))
+			}
+
+			for _, metric := range metricDefinition.Metrics {
+				addText(&builder, fmt.Sprintf("%s%s{%s} %g\n", prefix, metricName, metric.Labels2Prometheus(commonLabels, format), metric.Value))
+			}
+		}
+	}
+	if format.openmetrics {
+		addText(&builder, "# EOF\n")
+	}
+	return builder.String()
+}
+
+func addText(builder *strings.Builder, text string) {
+	_, err := builder.WriteString(text)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
