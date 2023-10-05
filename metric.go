@@ -87,65 +87,16 @@ func (m Metric) Labels2Prometheus(commonLabels map[string]string, format MetricF
 
 	sort.Strings(keys)
 
-	labelstr := ""
+	var builder strings.Builder
 	sep := ""
 	for _, k := range keys {
 		// Filter out empty labels
 		if m.Labels[k] != "" {
-			labelstr = labelstr + fmt.Sprintf("%s%s=\"%s\"", sep, toLowerLabels(k, format), m.Labels[k])
+			addText(&builder, fmt.Sprintf("%s%s=\"%s\"", sep, toLowerLabels(k, format), m.Labels[k]))
 			sep = ","
 		}
 	}
-	return labelstr
-}
-
-// Metrics2Prometheus convert a slice of Metric to Prometheus text output
-func Metrics2PrometheusOLD(metrics []MetricDefinition, prefix string, commonLabels map[string]string, format MetricFormat) string {
-	promFormat := ""
-
-	for _, metricDefinition := range metrics {
-
-		// only format if the metrics slice include items
-		metricName := metricDefinition.Name
-		if metricDefinition.Description.Unit != "" {
-			metricName = metricDefinition.Name + "_" + metricDefinition.Description.Unit
-		}
-
-		if metricDefinition.Description.Type == "counter" && metricDefinition.Description.Unit != "info" {
-			metricName = metricName + "_total"
-		}
-
-		if len(metricDefinition.Metrics) > 0 {
-			if metricDefinition.Description.Help == "" {
-				promFormat = promFormat + fmt.Sprintf("# HELP %s%s %s\n", prefix, metricName, "Missing description")
-			} else {
-				promFormat = promFormat + fmt.Sprintf("# HELP %s%s %s\n", prefix, metricName, metricDefinition.Description.Help)
-			}
-
-			promType := "gauge"
-			if metricDefinition.Description.Type != "" {
-				promType = metricDefinition.Description.Type
-			}
-			if format.openmetrics {
-				if strings.HasSuffix(metricName, "_info") {
-					promFormat = promFormat + fmt.Sprintf("# TYPE %s%s %s\n", prefix, metricName, "info")
-				} else {
-					promFormat = promFormat + fmt.Sprintf("# TYPE %s%s %s\n", prefix, metricName, promType)
-				}
-				promFormat = promFormat + fmt.Sprintf("# UNIT %s%s %s\n", prefix, metricName, metricDefinition.Description.Unit)
-			} else {
-				promFormat = promFormat + fmt.Sprintf("# TYPE %s%s %s\n", prefix, metricName, promType)
-			}
-
-			for _, metric := range metricDefinition.Metrics {
-				promFormat = promFormat + fmt.Sprintf("%s%s{%s} %g\n", prefix, metricName, metric.Labels2Prometheus(commonLabels, format), metric.Value)
-			}
-		}
-	}
-	if format.openmetrics {
-		promFormat = promFormat + "# EOF\n"
-	}
-	return promFormat
+	return builder.String()
 }
 
 // Metrics2Prometheus convert a slice of Metric to Prometheus text output
