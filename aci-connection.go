@@ -17,7 +17,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"strconv"
@@ -192,7 +192,7 @@ func (c AciConnection) doGet(url string) ([]byte, int, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusOK {
-		bodyBytes, err := ioutil.ReadAll(resp.Body)
+		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"requestid": c.ctx.Value("requestid"),
@@ -224,6 +224,8 @@ func (c AciConnection) doPostXML(label string, url string, requestBody []byte) (
 
 	start := time.Now()
 	resp, err := c.Client.Do(req)
+	//cook := resp.Cookies()
+	//print(cook)
 	if err != nil {
 		log.WithFields(log.Fields{
 			"requestid": c.ctx.Value("requestid"),
@@ -252,7 +254,7 @@ func (c AciConnection) doPostXML(label string, url string, requestBody []byte) (
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusOK {
-		bodyBytes, err := ioutil.ReadAll(resp.Body)
+		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"requestid": c.ctx.Value("requestid"),

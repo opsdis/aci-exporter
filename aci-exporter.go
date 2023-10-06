@@ -17,6 +17,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net/http/pprof"
 	"os"
 	"strconv"
 	"strings"
@@ -71,6 +72,7 @@ func main() {
 	config := flag.String("config", viper.GetString("config"), "Set configuration file, default config.yaml")
 	usage := flag.Bool("u", false, "Show usage")
 	writeConfig := flag.Bool("default", false, "Write default config")
+	profiling := flag.Bool("pprof", false, "Enable profiling")
 
 	cli := flag.Bool("cli", false, "Run single query")
 	class := flag.String("class", viper.GetString("class"), "The class name - only cli")
@@ -195,6 +197,17 @@ func main() {
 			EnableOpenMetrics: true,
 		},
 	))
+	// profiling endpoint
+	if *profiling {
+		log.Info(fmt.Sprintf("Starting profiling endpoint on %s", viper.GetString("pport")))
+		mux := http.NewServeMux()
+		mux.HandleFunc("/debug/pprof/", pprof.Index)
+		mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+		go func() { log.Fatal(http.ListenAndServe(viper.GetString("pport"), mux)) }()
+	}
 
 	log.Info(fmt.Sprintf("%s starting on port %d", ExporterName, viper.GetInt("port")))
 	log.Info(fmt.Sprintf("Read timeout %s, Write timeout %s", viper.GetDuration("httpserver.read_timeout")*time.Second, viper.GetDuration("httpserver.write_timeout")*time.Second))
@@ -283,15 +296,29 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 	ctx = context.WithValue(ctx, "fabric", fabric)
 	api := *newAciAPI(ctx, h.AllFabrics[fabric], h.AllQueries, queries)
 
+	start := time.Now()
 	aciName, metrics, err := api.CollectMetrics()
+	log.WithFields(log.Fields{
+		"requestid": ctx.Value("requestid"),
+		"exec_time": time.Since(start).Microseconds(),
+		"fabric":    fmt.Sprintf("%v", ctx.Value("fabric")),
+	}).Info("total query collection time")
 
 	commonLabels := make(map[string]string)
 	commonLabels["aci"] = aciName
 	commonLabels["fabric"] = fabric
 
+	start = time.Now()
 	metricsFormat := NewMetricFormat(openmetrics, viper.GetBool("metric_format.label_key_to_lower_case"),
 		viper.GetBool("metric_format.label_key_to_snake_case"))
 	var bodyText = Metrics2Prometheus(metrics, api.metricPrefix, commonLabels, metricsFormat)
+
+	log.WithFields(log.Fields{
+		"requestid": ctx.Value("requestid"),
+		"exec_time": time.Since(start).Microseconds(),
+		"fabric":    fmt.Sprintf("%v", ctx.Value("fabric")),
+	}).Info("processing metrics to prometheus exposition format")
+
 	if openmetrics {
 		w.Header().Set("Content-Type", "application/openmetrics-text; version=0.0.1; charset=utf-8")
 	} else {

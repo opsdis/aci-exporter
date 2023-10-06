@@ -53,6 +53,8 @@ func SetDefaultValues() {
 	viper.BindEnv("config")
 	viper.SetDefault("prefix", "aci_")
 	viper.BindEnv("prefix")
+	viper.SetDefault("pport", "localhost:6060")
+	viper.BindEnv("pport")
 
 	// If set to true response will always be in openmetrics format
 	viper.SetDefault("openmetrics", false)
