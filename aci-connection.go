@@ -54,7 +54,7 @@ type AciConnection struct {
 	responseTime     *prometheus.HistogramVec
 }
 
-func newAciConnction(ctx context.Context, fabricConfig *Fabric) *AciConnection {
+func newAciConnection(ctx context.Context, fabricConfig *Fabric) *AciConnection {
 	// Empty cookie jar
 	jar, _ := cookiejar.New(nil)
 

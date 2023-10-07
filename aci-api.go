@@ -66,7 +66,7 @@ func newAciAPI(ctx context.Context, fabricConfig *Fabric, configQueries AllQueri
 
 	api := &aciAPI{
 		ctx:                   ctx,
-		connection:            *newAciConnction(ctx, fabricConfig),
+		connection:            *newAciConnection(ctx, fabricConfig),
 		metricPrefix:          viper.GetString("prefix"),
 		configQueries:         executeQueries.ClassQueries,
 		configCompoundQueries: executeQueries.CompoundClassQueries,

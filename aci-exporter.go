@@ -232,7 +232,7 @@ func cliQuery(fabric *string, class *string, query *string) string {
 
 	fabricConfig := Fabric{Username: username, Password: password, Apic: apicControllers, AciName: aciName}
 	ctx := context.TODO()
-	con := *newAciConnction(ctx, &fabricConfig)
+	con := *newAciConnection(ctx, &fabricConfig)
 	err = con.login()
 	if err != nil {
 		fmt.Printf("Login error %s", err)
