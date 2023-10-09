@@ -67,7 +67,6 @@ func newAciConnection(ctx context.Context, fabricConfig *Fabric) *AciConnection 
 	}.GetClient()
 
 	var headers = make(map[string]string)
-	headers["Content-Type"] = "application/json"
 
 	urlMap := make(map[string]string)
 
@@ -109,7 +108,6 @@ func (c AciConnection) login() error {
 		}
 	}
 	return fmt.Errorf("failed to login to any apic controllers")
-
 }
 
 func (c AciConnection) logout() bool {
@@ -151,7 +149,7 @@ func (c AciConnection) getByClassQuery(class string, query string) (string, erro
 
 func (c AciConnection) get(class string, url string) ([]byte, error) {
 	start := time.Now()
-	body, status, err := c.doGet(class, url)
+	body, status, iterations, err := c.doGet(class, url)
 	responseTime := time.Since(start).Seconds()
 	c.responseTime.With(prometheus.Labels{
 		"fabric": fmt.Sprintf("%v", c.ctx.Value("fabric")),
@@ -165,6 +163,7 @@ func (c AciConnection) get(class string, url string) ([]byte, error) {
 		"class":     class,
 		"status":    status,
 		"length":    len(body),
+		"pages":     iterations,
 		"requestid": c.ctx.Value("requestid"),
 		"exec_time": time.Since(start).Microseconds(),
 		"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
@@ -182,10 +181,11 @@ func (c AciConnection) doGetOLD(url string) ([]byte, int, error) {
 		}).Error(err)
 		return nil, 0, err
 	}
-	for k, v := range c.Headers {
-		req.Header.Set(k, v)
-	}
-
+	/*
+		for k, v := range c.Headers {
+			req.Header.Set(k, v)
+		}
+	*/
 	resp, err := c.Client.Do(req)
 	if err != nil {
 		log.WithFields(log.Fields{
@@ -212,7 +212,7 @@ func (c AciConnection) doGetOLD(url string) ([]byte, int, error) {
 	return nil, resp.StatusCode, fmt.Errorf("ACI api returned %d", resp.StatusCode)
 }
 
-func (c AciConnection) doGet(class string, url string) ([]byte, int, error) {
+func (c AciConnection) doGet(class string, url string) ([]byte, int, uint64, error) {
 
 	var resp http.Response
 
@@ -225,11 +225,12 @@ func (c AciConnection) doGet(class string, url string) ([]byte, int, error) {
 
 	pagedUrl := url
 
-	header := http.Header{}
-	for k, v := range c.Headers {
-		header.Set(k, v)
-	}
-
+	/*
+		header := http.Header{}
+		for k, v := range c.Headers {
+			header.Set(k, v)
+		}
+	*/
 	for {
 		if strings.Contains(url, "?") {
 			pagedUrl = fmt.Sprintf("%s&order-by=%s.dn&page=%d&page-size=%d", url, class, count, pageCount)
@@ -243,9 +244,9 @@ func (c AciConnection) doGet(class string, url string) ([]byte, int, error) {
 				"requestid": c.ctx.Value("requestid"),
 				"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
 			}).Error(err)
-			return nil, 0, err
+			return nil, 0, 0, err
 		}
-		req.Header = header
+		//req.Header = header
 		resp, err := c.Client.Do(req)
 		if req != nil {
 			req.Body.Close()
@@ -256,7 +257,7 @@ func (c AciConnection) doGet(class string, url string) ([]byte, int, error) {
 				"requestid": c.ctx.Value("requestid"),
 				"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
 			}).Error(err)
-			return nil, 0, err
+			return nil, 0, 0, err
 		}
 
 		if resp.StatusCode == http.StatusOK {
@@ -266,13 +267,12 @@ func (c AciConnection) doGet(class string, url string) ([]byte, int, error) {
 					"requestid": c.ctx.Value("requestid"),
 					"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
 				}).Error(err)
-				return nil, resp.StatusCode, err
+				return nil, resp.StatusCode, 0, err
 			}
 			// return the total and not the amount to be collected
-			//if count == 0 {
-			aciResponse.TotalCount = gjson.Get(string(bodyBytes), "totalCount").Uint()
-			//fmt.Printf("Total %d count %d\n", aciResponse.TotalCount, count)
-			//}
+			if count == 0 {
+				aciResponse.TotalCount = gjson.Get(string(bodyBytes), "totalCount").Uint()
+			}
 			tmpAciResponse := ACIResponse{
 				TotalCount: 0,
 				ImData:     make([]map[string]interface{}, 0, pageCount),
@@ -293,13 +293,13 @@ func (c AciConnection) doGet(class string, url string) ([]byte, int, error) {
 		} else {
 			// if not 200
 			resp.Body.Close()
-			return nil, resp.StatusCode, fmt.Errorf("ACI api returned %d", resp.StatusCode)
+			return nil, resp.StatusCode, count, fmt.Errorf("ACI api returned %d", resp.StatusCode)
 		}
 
 	}
 	data, _ := json.Marshal(aciResponse)
 
-	return data, resp.StatusCode, nil
+	return data, resp.StatusCode, count, nil
 }
 
 func (c AciConnection) doPostXML(label string, url string, requestBody []byte) ([]byte, int, error) {
