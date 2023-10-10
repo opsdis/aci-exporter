@@ -195,7 +195,7 @@ func (c AciConnection) doGet(class string, url string) ([]byte, int, uint64, err
 
 		req, err := http.NewRequest("GET", pagedUrl, bytes.NewBuffer([]byte{}))
 		log.Debug(fmt.Sprintf("url %s\n", pagedUrl))
-		fmt.Printf("url %s\n", pagedUrl)
+
 		if err != nil {
 			log.WithFields(log.Fields{
 				"requestid": c.ctx.Value("requestid"),
