@@ -41,8 +41,6 @@ var responseTime = promauto.NewHistogramVec(prometheus.HistogramOpts{
 	[]string{"fabric", "class", "method", "status"},
 )
 
-var pageCount uint64 = 1000
-
 // AciConnection is the connection object
 type AciConnection struct {
 	ctx              context.Context
@@ -52,6 +50,7 @@ type AciConnection struct {
 	Headers          map[string]string
 	Client           http.Client
 	responseTime     *prometheus.HistogramVec
+	pageSize         uint64
 }
 
 func newAciConnection(ctx context.Context, fabricConfig *Fabric) *AciConnection {
@@ -67,6 +66,7 @@ func newAciConnection(ctx context.Context, fabricConfig *Fabric) *AciConnection 
 	}.GetClient()
 
 	var headers = make(map[string]string)
+	headers["Content-Type"] = "application/json"
 
 	urlMap := make(map[string]string)
 
@@ -83,6 +83,7 @@ func newAciConnection(ctx context.Context, fabricConfig *Fabric) *AciConnection 
 		Headers:          headers,
 		Client:           *httpClient,
 		responseTime:     responseTime,
+		pageSize:         viper.GetUint64("httpclient.pagesize"),
 	}
 }
 
@@ -171,74 +172,30 @@ func (c AciConnection) get(class string, url string) ([]byte, error) {
 	return body, err
 }
 
-func (c AciConnection) doGetOLD(url string) ([]byte, int, error) {
-
-	req, err := http.NewRequest("GET", url, bytes.NewBuffer([]byte{}))
-	if err != nil {
-		log.WithFields(log.Fields{
-			"requestid": c.ctx.Value("requestid"),
-			"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
-		}).Error(err)
-		return nil, 0, err
-	}
-	/*
-		for k, v := range c.Headers {
-			req.Header.Set(k, v)
-		}
-	*/
-	resp, err := c.Client.Do(req)
-	if err != nil {
-		log.WithFields(log.Fields{
-			"requestid": c.ctx.Value("requestid"),
-			"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
-		}).Error(err)
-		return nil, 0, err
-	}
-
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusOK {
-		bodyBytes, err := io.ReadAll(resp.Body)
-		if err != nil {
-			log.WithFields(log.Fields{
-				"requestid": c.ctx.Value("requestid"),
-				"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
-			}).Error(err)
-			return nil, resp.StatusCode, err
-		}
-
-		return bodyBytes, resp.StatusCode, nil
-	}
-	return nil, resp.StatusCode, fmt.Errorf("ACI api returned %d", resp.StatusCode)
-}
-
 func (c AciConnection) doGet(class string, url string) ([]byte, int, uint64, error) {
 
 	var resp http.Response
 
 	aciResponse := ACIResponse{
 		TotalCount: 0,
-		ImData:     make([]map[string]interface{}, 0, pageCount),
+		ImData:     make([]map[string]interface{}, 0, c.pageSize),
 	}
 
 	var count uint64 = 0
 
 	pagedUrl := url
 
-	/*
-		header := http.Header{}
-		for k, v := range c.Headers {
-			header.Set(k, v)
-		}
-	*/
 	for {
+		// Create paging url
 		if strings.Contains(url, "?") {
-			pagedUrl = fmt.Sprintf("%s&order-by=%s.dn&page=%d&page-size=%d", url, class, count, pageCount)
+			pagedUrl = fmt.Sprintf("%s&order-by=%s.dn&page=%d&page-size=%d", url, class, count, c.pageSize)
 		} else {
-			pagedUrl = fmt.Sprintf("%s?order-by=%s.dn&page=%d&page-size=%d", url, class, count, pageCount)
+			pagedUrl = fmt.Sprintf("%s?order-by=%s.dn&page=%d&page-size=%d", url, class, count, c.pageSize)
 		}
+
 		req, err := http.NewRequest("GET", pagedUrl, bytes.NewBuffer([]byte{}))
-		//fmt.Printf("count %s\n", pagedUrl)
+		log.Debug(fmt.Sprintf("url %s\n", pagedUrl))
+		fmt.Printf("url %s\n", pagedUrl)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"requestid": c.ctx.Value("requestid"),
@@ -246,7 +203,12 @@ func (c AciConnection) doGet(class string, url string) ([]byte, int, uint64, err
 			}).Error(err)
 			return nil, 0, 0, err
 		}
-		//req.Header = header
+		// Set headers
+		for k, v := range c.Headers {
+			req.Header.Set(k, v)
+		}
+
+		// Will append the APIC-cookie
 		resp, err := c.Client.Do(req)
 		if req != nil {
 			req.Body.Close()
@@ -269,13 +231,13 @@ func (c AciConnection) doGet(class string, url string) ([]byte, int, uint64, err
 				}).Error(err)
 				return nil, resp.StatusCode, 0, err
 			}
-			// return the total and not the amount to be collected
+			// return the total and not the amount to be collected, but only first count
 			if count == 0 {
 				aciResponse.TotalCount = gjson.Get(string(bodyBytes), "totalCount").Uint()
 			}
 			tmpAciResponse := ACIResponse{
 				TotalCount: 0,
-				ImData:     make([]map[string]interface{}, 0, pageCount),
+				ImData:     make([]map[string]interface{}, 0, c.pageSize),
 			}
 			_ = json.Unmarshal(bodyBytes, &tmpAciResponse)
 			//fmt.Printf("size returned %d\n", len(tmpAciResponse.ImData))
@@ -285,7 +247,7 @@ func (c AciConnection) doGet(class string, url string) ([]byte, int, uint64, err
 				}
 			}
 			count = count + 1
-			if count*pageCount >= aciResponse.TotalCount {
+			if count*c.pageSize >= aciResponse.TotalCount {
 				break
 			}
 
