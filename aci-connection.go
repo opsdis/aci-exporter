@@ -53,6 +53,20 @@ type AciConnection struct {
 	pageSize         uint64
 }
 
+func getNumberOfParallel(numerator uint64, denominator uint64) uint64 {
+	quotient, remainder := divMod(numerator, denominator)
+	if remainder > 0 {
+		return quotient + 1
+	}
+	return quotient
+}
+
+func divMod(numerator uint64, denominator uint64) (quotient uint64, remainder uint64) {
+	quotient = numerator / denominator // integer division, decimals are truncated
+	remainder = numerator % denominator
+	return quotient, remainder
+}
+
 func newAciConnection(ctx context.Context, fabricConfig *Fabric) *AciConnection {
 	// Empty cookie jar
 	jar, _ := cookiejar.New(nil)
@@ -150,7 +164,17 @@ func (c AciConnection) getByClassQuery(class string, query string) (string, erro
 
 func (c AciConnection) get(class string, url string) ([]byte, error) {
 	start := time.Now()
-	body, status, iterations, err := c.doGet(class, url)
+	var body []byte
+	var status int
+	var iterations uint64
+	var err error
+
+	if viper.GetBool("HTTPClient.parallel_paging") {
+		body, status, iterations, err = c.doGetParallel(class, url)
+	} else {
+		body, status, iterations, err = c.doGet(class, url)
+	}
+
 	responseTime := time.Since(start).Seconds()
 	c.responseTime.With(prometheus.Labels{
 		"fabric": fmt.Sprintf("%v", c.ctx.Value("fabric")),
@@ -262,6 +286,147 @@ func (c AciConnection) doGet(class string, url string) ([]byte, int, uint64, err
 	data, _ := json.Marshal(aciResponse)
 
 	return data, resp.StatusCode, count, nil
+}
+
+func (c AciConnection) doGetParallel(class string, url string) ([]byte, int, uint64, error) {
+
+	var resp http.Response
+
+	aciResponse := ACIResponse{
+		TotalCount: 0,
+		ImData:     make([]map[string]interface{}, 0, c.pageSize),
+	}
+
+	pagedUrl := url
+
+	// do a single call to get totalCount
+	if strings.Contains(url, "?") {
+		pagedUrl = fmt.Sprintf("%s&order-by=%s.dn&page-size=%d&page=%d", url, class, c.pageSize, 0)
+	} else {
+		pagedUrl = fmt.Sprintf("%s?order-by=%s.dn&page-size=%d&page=%d", url, class, c.pageSize, 0)
+	}
+
+	req1, err := http.NewRequest("GET", pagedUrl+"0", bytes.NewBuffer([]byte{}))
+	log.Debug(fmt.Sprintf("url %s\n", pagedUrl))
+
+	if err != nil {
+		log.WithFields(log.Fields{
+			"requestid": c.ctx.Value("requestid"),
+			"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
+		}).Error(err)
+		return nil, 0, 0, err
+	}
+	// Set headers
+	for k, v := range c.Headers {
+		req1.Header.Set(k, v)
+	}
+
+	// Will append the APIC-cookie
+	resp1, err := c.Client.Do(req1)
+	if req1 != nil {
+		req1.Body.Close()
+	}
+
+	if err != nil {
+		log.WithFields(log.Fields{
+			"requestid": c.ctx.Value("requestid"),
+			"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
+		}).Error(err)
+		return nil, 0, 0, err
+	}
+
+	if resp1.StatusCode == http.StatusOK {
+		bodyBytes, err := io.ReadAll(resp1.Body)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"requestid": c.ctx.Value("requestid"),
+				"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
+			}).Error(err)
+			return nil, resp.StatusCode, 0, err
+		}
+
+		// get the 0 page data
+		aciResponse.TotalCount = gjson.Get(string(bodyBytes), "totalCount").Uint()
+		_ = json.Unmarshal(bodyBytes, &aciResponse)
+		log.Info(fmt.Sprintf("Fetched page %d", 0))
+	}
+
+	numberOfParallel := getNumberOfParallel(aciResponse.TotalCount, c.pageSize)
+	ch := make(chan ACIResponse)
+	for ii := 1; ii < int(numberOfParallel); ii++ {
+		go collectPage(class, url, pagedUrl, c, ch, ii)
+	}
+
+	//mu := sync.Mutex{}
+	for i := 1; i < int(numberOfParallel); i++ {
+		//mu.Lock()
+		comm := <-ch
+		for _, imData := range comm.ImData {
+			aciResponse.ImData = append(aciResponse.ImData, imData)
+			//log.Debug(fmt.Sprintf("%d:%s\n", i, imData["ethpmPhysIf"].(map[string]interface{})["attributes"].(map[string]interface{})["dn"].(string)))
+		}
+		//mu.Unlock()
+		log.Info(fmt.Sprintf("Fetched page %d", i))
+	}
+
+	data, _ := json.Marshal(aciResponse)
+
+	return data, resp.StatusCode, numberOfParallel, nil
+}
+
+func collectPage(class string, url string, pagedUrl string, c AciConnection, ch chan ACIResponse, page int) {
+	if strings.Contains(url, "?") {
+		pagedUrl = fmt.Sprintf("%s&order-by=%s.dn&page-size=%d&page=%d", url, class, c.pageSize, page)
+	} else {
+		pagedUrl = fmt.Sprintf("%s?order-by=%s.dn&page-size=%d&page=%d", url, class, c.pageSize, page)
+	}
+
+	req, err := http.NewRequest("GET", pagedUrl, bytes.NewBuffer([]byte{}))
+	log.Debug(fmt.Sprintf("url %s\n", pagedUrl))
+	if err != nil {
+		log.WithFields(log.Fields{
+			"requestid": c.ctx.Value("requestid"),
+			"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
+		}).Error(err)
+		//return nil, 0, 0, err
+	}
+	// Set headers
+	for k, v := range c.Headers {
+		req.Header.Set(k, v)
+	}
+
+	// Will append the APIC-cookie
+	resp, err := c.Client.Do(req)
+	if req != nil {
+		req.Body.Close()
+	}
+
+	if err != nil {
+		log.WithFields(log.Fields{
+			"requestid": c.ctx.Value("requestid"),
+			"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
+		}).Error(err)
+		//return nil, 0, 0, err
+	}
+
+	if resp.StatusCode == http.StatusOK {
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"requestid": c.ctx.Value("requestid"),
+				"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
+			}).Error(err)
+			//return nil, resp.StatusCode, 0, err
+		}
+		// return the total and not the amount to be collected, but only first count
+
+		tmpAciResponse := ACIResponse{
+			TotalCount: 0,
+			ImData:     make([]map[string]interface{}, 0, c.pageSize),
+		}
+		_ = json.Unmarshal(bodyBytes, &tmpAciResponse)
+		ch <- tmpAciResponse
+	}
 }
 
 func (c AciConnection) doPostXML(label string, url string, requestBody []byte) ([]byte, int, error) {
