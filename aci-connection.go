@@ -366,7 +366,7 @@ func (c AciConnection) doGetParallel(class string, url string) ([]byte, int, uin
 			//log.Debug(fmt.Sprintf("%d:%s\n", i, imData["ethpmPhysIf"].(map[string]interface{})["attributes"].(map[string]interface{})["dn"].(string)))
 		}
 		//mu.Unlock()
-		log.Info(fmt.Sprintf("Fetched page %d", i))
+		log.Debug(fmt.Sprintf("Fetched page %d", i))
 	}
 
 	data, _ := json.Marshal(aciResponse)
@@ -381,14 +381,21 @@ func collectPage(class string, url string, pagedUrl string, c AciConnection, ch 
 		pagedUrl = fmt.Sprintf("%s?order-by=%s.dn&page-size=%d&page=%d", url, class, c.pageSize, page)
 	}
 
+	tmpAciResponse := ACIResponse{
+		TotalCount: 0,
+		ImData:     make([]map[string]interface{}, 0, c.pageSize),
+	}
+
 	req, err := http.NewRequest("GET", pagedUrl, bytes.NewBuffer([]byte{}))
 	log.Debug(fmt.Sprintf("url %s\n", pagedUrl))
+
 	if err != nil {
 		log.WithFields(log.Fields{
 			"requestid": c.ctx.Value("requestid"),
 			"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
 		}).Error(err)
-		//return nil, 0, 0, err
+		ch <- tmpAciResponse
+		return
 	}
 	// Set headers
 	for k, v := range c.Headers {
@@ -396,37 +403,44 @@ func collectPage(class string, url string, pagedUrl string, c AciConnection, ch 
 	}
 
 	// Will append the APIC-cookie
+	start := time.Now()
 	resp, err := c.Client.Do(req)
-	if req != nil {
-		req.Body.Close()
-	}
 
 	if err != nil {
+		req.Body.Close()
 		log.WithFields(log.Fields{
 			"requestid": c.ctx.Value("requestid"),
 			"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
 		}).Error(err)
-		//return nil, 0, 0, err
+		ch <- tmpAciResponse
+		return
 	}
+
+	responseTime := time.Since(start).Seconds()
+	log.WithFields(log.Fields{
+		"exec_time": responseTime,
+		"class":     class,
+		"page":      page,
+		"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
+	}).Info("call fabric paging")
 
 	if resp.StatusCode == http.StatusOK {
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
+			req.Body.Close()
 			log.WithFields(log.Fields{
 				"requestid": c.ctx.Value("requestid"),
 				"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
 			}).Error(err)
-			//return nil, resp.StatusCode, 0, err
+			ch <- tmpAciResponse
+			return
 		}
-		// return the total and not the amount to be collected, but only first count
 
-		tmpAciResponse := ACIResponse{
-			TotalCount: 0,
-			ImData:     make([]map[string]interface{}, 0, c.pageSize),
-		}
 		_ = json.Unmarshal(bodyBytes, &tmpAciResponse)
-		ch <- tmpAciResponse
+
+		req.Body.Close()
 	}
+	ch <- tmpAciResponse
 }
 
 func (c AciConnection) doPostXML(label string, url string, requestBody []byte) ([]byte, int, error) {
