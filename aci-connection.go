@@ -17,12 +17,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/tidwall/gjson"
 	"io"
 	"net/http"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/tidwall/gjson"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
