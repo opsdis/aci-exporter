@@ -4,7 +4,7 @@ Here you can find the code that was used in the `DEVNET-2210 - Grafana Dashboard
 
 # Environment 
  
-This examples assumes that all the components used are running on top of a Kubernetes Cluster. The Kubernetes cluster used for this examples is provides the following:
+This examples assumes that all the components used are running on top of a Kubernetes Cluster. The Kubernetes cluster used for this examples provides the following:
 - [Longhorn Persistent Storage](https://longhorn.io)
 - [NGINX Ingress Controller](https://kubernetes.github.io/ingress-nginx)
 - [The kube-prometheus-stack](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack)
@@ -14,6 +14,7 @@ If the above requirements are met you should be able to deploy this demo by:
 - updating the `fabrics` section in the [aci-exporter-deployment](aci-exporter-deployment.yaml)
 - Adding an `additionalScrapeConfigs` in your Prometheus configuration as show in the [kube-prometheus-stack-values](kube-prometheus-stack-values.yaml) example
 
+Note: In case you want to run aci-exporter standalone you can use the `aci-exporter-standalone.yaml` file instead
 # Grafana Dashboards
 You can find the following dashboards in the [Grafana Dashboards](grafana_dashboards) folder
 
