@@ -15,7 +15,7 @@ If the above requirements are met you should be able to deploy this demo by:
 - Adding an `additionalScrapeConfigs` in your Prometheus configuration as show in the [kube-prometheus-stack-values](kube-prometheus-stack-values.yaml) example
 
 # Grafana Dashboards
-You can find the following dashboards in the [Grafana Dx``ashboards](grafana_dashboards) folder
+You can find the following dashboards in the [Grafana Dashboards](grafana_dashboards) folder
 
 ## Capacity Dashboard
 Visualize the fabric and switch capacity and track utilisation over time.
