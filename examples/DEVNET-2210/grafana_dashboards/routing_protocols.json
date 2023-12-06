@@ -1,0 +1,943 @@
+{
+    "annotations": {
+      "list": [
+        {
+          "builtIn": 1,
+          "datasource": {
+            "type": "grafana",
+            "uid": "-- Grafana --"
+          },
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "type": "dashboard"
+        }
+      ]
+    },
+    "editable": true,
+    "fiscalYearStartMonth": 0,
+    "graphTooltip": 0,
+    "id": 335,
+    "links": [],
+    "liveNow": false,
+    "panels": [
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": "auto",
+              "cellOptions": {
+                "type": "auto"
+              },
+              "filterable": true,
+              "inspect": false
+            },
+            "links": [],
+            "mappings": [],
+            "noValue": "N/A",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Up/Down Time"
+              },
+              "properties": [
+                {
+                  "id": "unit",
+                  "value": "dtdhms"
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "fabric"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 97
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "podid"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 77
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "nodeid"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 83
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "vrf"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 98
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "type"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 89
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "id"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 116
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "interface"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 113
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "ASN/Area"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 124
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "oper_state"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 145
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 0
+        },
+        "id": 1,
+        "options": {
+          "cellHeight": "sm",
+          "footer": {
+            "countRows": false,
+            "enablePagination": false,
+            "fields": "",
+            "reducer": [
+              "sum"
+            ],
+            "show": false
+          },
+          "showHeader": true,
+          "sortBy": [
+            {
+              "desc": true,
+              "displayName": "peer_ip"
+            }
+          ]
+        },
+        "pluginVersion": "10.1.5",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "editorMode": "code",
+            "exemplar": false,
+            "expr": "topk($top,(time() - (aci_ospf_neighbors{fabric=~\"$fabric\",nodeid=~\"$nodeid\",vrf=~\"$vrf\"} or aci_bgp_peers{fabric=~\"$fabric\",nodeid=~\"$nodeid\",vrf=~\"$vrf\"})))",
+            "format": "table",
+            "hide": false,
+            "instant": true,
+            "legendFormat": "{{fabric}} - {{nodeid}}",
+            "range": false,
+            "refId": "A"
+          }
+        ],
+        "title": "L3 Neighbours",
+        "transformations": [
+          {
+            "id": "calculateField",
+            "options": {
+              "alias": "ASN/Area",
+              "binary": {
+                "left": "area",
+                "reducer": "sum",
+                "right": "asn"
+              },
+              "mode": "binary",
+              "reduce": {
+                "reducer": "sum"
+              }
+            }
+          },
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "Time": true,
+                "__name__": true,
+                "aci": true,
+                "area": true,
+                "asn": true,
+                "flags": true,
+                "instance": true,
+                "job": true
+              },
+              "indexByName": {
+                "ASN/Area": 9,
+                "Time": 17,
+                "Value": 10,
+                "aci": 18,
+                "area": 20,
+                "asn": 19,
+                "conn_attempts": 11,
+                "conn_drop": 12,
+                "conn_est": 13,
+                "fabric": 0,
+                "flags": 14,
+                "id": 7,
+                "instance": 16,
+                "interface": 8,
+                "job": 15,
+                "nodeid": 2,
+                "oper_state": 6,
+                "peer_ip": 4,
+                "podid": 1,
+                "type": 5,
+                "vrf": 3
+              },
+              "renameByName": {
+                "Value": "Up/Down Time",
+                "area": "",
+                "asn": "",
+                "conn_attempts": "Coonection Attempts",
+                "conn_drop": "Coonection Drops",
+                "conn_est": "Coonection Established",
+                "fabric": "Fabric",
+                "id": "Router ID",
+                "interface": "Interface",
+                "nodeid": "Node ID",
+                "oper_state": "State",
+                "peer_ip": "Peer IP",
+                "podid": "POD ID",
+                "type": "Type",
+                "vrf": "VRF"
+              }
+            }
+          }
+        ],
+        "type": "table"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": "left",
+              "cellOptions": {
+                "type": "auto"
+              },
+              "filterable": true,
+              "inspect": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "__name__"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 256
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Fabric"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 69
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Pod ID"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 60
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Node ID"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 80
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "VRF"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 97
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Peer IP"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 113
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Address Family"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 127
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 7,
+          "w": 12,
+          "x": 0,
+          "y": 8
+        },
+        "id": 3,
+        "options": {
+          "cellHeight": "sm",
+          "footer": {
+            "countRows": false,
+            "fields": "",
+            "reducer": [
+              "sum"
+            ],
+            "show": true
+          },
+          "frameIndex": 1,
+          "showHeader": true,
+          "sortBy": []
+        },
+        "pluginVersion": "10.1.5",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "editorMode": "code",
+            "exemplar": false,
+            "expr": "topk($top,aci_bgp_peer_prefix_sent{fabric=~\"$fabric\",nodeid=~\"$nodeid\",vrf=~\"$vrf\"})",
+            "format": "table",
+            "hide": false,
+            "instant": true,
+            "legendFormat": "__auto",
+            "range": false,
+            "refId": "A"
+          }
+        ],
+        "title": "BGP Advertised Paths",
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "Time": true,
+                "__name__": true,
+                "aci": true,
+                "instance": true,
+                "job": true
+              },
+              "indexByName": {
+                "Time": 7,
+                "Value": 6,
+                "__name__": 8,
+                "aci": 9,
+                "address_family": 5,
+                "fabric": 0,
+                "instance": 10,
+                "job": 11,
+                "nodeid": 2,
+                "peer_ip": 4,
+                "podid": 1,
+                "vrf": 3
+              },
+              "renameByName": {
+                "Value": "Paths",
+                "address_family": "Address Family",
+                "fabric": "Fabric",
+                "nodeid": "Node ID",
+                "peer_ip": "Peer IP",
+                "podid": "Pod ID",
+                "vrf": "VRF"
+              }
+            }
+          }
+        ],
+        "type": "table"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": "left",
+              "cellOptions": {
+                "type": "auto"
+              },
+              "filterable": true,
+              "inspect": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "__name__"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 256
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Fabric"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 69
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Pod ID"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 60
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Node ID"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 80
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "VRF"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 97
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Peer IP"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 113
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Address Family"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 127
+                }
+              ]
+            }
+          ]
+        },
+        "gridPos": {
+          "h": 7,
+          "w": 12,
+          "x": 12,
+          "y": 8
+        },
+        "id": 2,
+        "options": {
+          "cellHeight": "sm",
+          "footer": {
+            "countRows": false,
+            "fields": "",
+            "reducer": [
+              "sum"
+            ],
+            "show": true
+          },
+          "frameIndex": 1,
+          "showHeader": true,
+          "sortBy": []
+        },
+        "pluginVersion": "10.1.5",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "editorMode": "code",
+            "exemplar": false,
+            "expr": "topk($top,aci_bgp_peer_prefix_received{fabric=~\"$fabric\",nodeid=~\"$nodeid\",vrf=~\"$vrf\"})",
+            "format": "table",
+            "hide": false,
+            "instant": true,
+            "legendFormat": "__auto",
+            "range": false,
+            "refId": "A"
+          }
+        ],
+        "title": "BGP Accepted Paths",
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "Time": true,
+                "__name__": true,
+                "aci": true,
+                "instance": true,
+                "job": true
+              },
+              "indexByName": {
+                "Time": 7,
+                "Value": 6,
+                "__name__": 8,
+                "aci": 9,
+                "address_family": 5,
+                "fabric": 0,
+                "instance": 10,
+                "job": 11,
+                "nodeid": 2,
+                "peer_ip": 4,
+                "podid": 1,
+                "vrf": 3
+              },
+              "renameByName": {
+                "Value": "Paths",
+                "address_family": "Address Family",
+                "fabric": "Fabric",
+                "nodeid": "Node ID",
+                "peer_ip": "Peer IP",
+                "podid": "Pod ID",
+                "vrf": "VRF"
+              }
+            }
+          }
+        ],
+        "type": "table"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 0,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 7,
+          "w": 24,
+          "x": 0,
+          "y": 15
+        },
+        "id": 4,
+        "options": {
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "single",
+            "sort": "none"
+          }
+        },
+        "pluginVersion": "9.5.2",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "editorMode": "code",
+            "exemplar": false,
+            "expr": "topk($top,aci_bgp_peer_prefix_received{fabric=~\"$fabric\",nodeid=~\"$nodeid\",vrf=~\"$vrf\"})",
+            "format": "time_series",
+            "hide": false,
+            "instant": false,
+            "legendFormat": "{{fabric}} - {{nodeid}} - {{vrf}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "BGP Accepted Paths",
+        "transformations": [],
+        "type": "timeseries"
+      }
+    ],
+    "refresh": "",
+    "schemaVersion": 38,
+    "style": "dark",
+    "tags": [],
+    "templating": {
+      "list": [
+        {
+          "current": {
+            "selected": false,
+            "text": "sjc-site2",
+            "value": "sjc-site2"
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "definition": "label_values(fabric)",
+          "description": "",
+          "hide": 0,
+          "includeAll": true,
+          "label": "Fabric",
+          "multi": false,
+          "name": "fabric",
+          "options": [],
+          "query": {
+            "query": "label_values(fabric)",
+            "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          },
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 0,
+          "type": "query"
+        },
+        {
+          "current": {
+            "selected": false,
+            "text": "104",
+            "value": "104"
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "definition": "query_result(aci_fabric_node_info{fabric=~\"$fabric\",role!=\"controller\"})",
+          "hide": 0,
+          "includeAll": true,
+          "label": "Nodeid",
+          "multi": false,
+          "name": "nodeid",
+          "options": [],
+          "query": {
+            "query": "query_result(aci_fabric_node_info{fabric=~\"$fabric\",role!=\"controller\"})",
+            "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          },
+          "refresh": 1,
+          "regex": "/nodeid=\"(.*?)\"/",
+          "skipUrlSync": false,
+          "sort": 0,
+          "type": "query"
+        },
+        {
+          "current": {
+            "selected": false,
+            "text": "F1:vrf",
+            "value": "F1:vrf"
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "definition": "query_result(aci_bgp_peer_prefix_received{fabric=~\"$fabric\"} or aci_ospf_neighbors{fabric=~\"$fabric\"})",
+          "hide": 0,
+          "includeAll": true,
+          "label": "Vrf",
+          "multi": true,
+          "name": "vrf",
+          "options": [],
+          "query": {
+            "query": "query_result(aci_bgp_peer_prefix_received{fabric=~\"$fabric\"} or aci_ospf_neighbors{fabric=~\"$fabric\"})",
+            "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          },
+          "refresh": 1,
+          "regex": "/vrf=\"(.*?)\"/",
+          "skipUrlSync": false,
+          "sort": 0,
+          "type": "query"
+        },
+        {
+          "current": {
+            "selected": false,
+            "text": "5",
+            "value": "5"
+          },
+          "hide": 0,
+          "includeAll": false,
+          "label": "Top",
+          "multi": false,
+          "name": "top",
+          "options": [
+            {
+              "selected": true,
+              "text": "5",
+              "value": "5"
+            },
+            {
+              "selected": false,
+              "text": "10",
+              "value": "10"
+            },
+            {
+              "selected": false,
+              "text": "50",
+              "value": "50"
+            },
+            {
+              "selected": false,
+              "text": "100",
+              "value": "100"
+            },
+            {
+              "selected": false,
+              "text": "1000",
+              "value": "1000"
+            }
+          ],
+          "query": "5,10,50,100,1000",
+          "queryValue": "",
+          "skipUrlSync": false,
+          "type": "custom"
+        }
+      ]
+    },
+    "time": {
+      "from": "now-5m",
+      "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "",
+    "title": "Routing Protocols",
+    "uid": "fae91763-da29-46ed-9eb4-74628c957690",
+    "version": 24,
+    "weekStart": ""
+  }
