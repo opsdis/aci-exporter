@@ -1,0 +1,43 @@
+prometheus:
+  prometheusSpec:
+    scrapeInterval: 30s
+    evaluationInterval: 30s
+    additionalScrapeConfigs:
+    - job_name: 'aci'
+      scrape_interval: 1m
+      scrape_timeout: 30s
+      metrics_path: /probe
+      static_configs:
+      - targets: ['fab1','fab2']
+      relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        # Change this to the DNS name of your aci-exporter service
+        replacement: aci-exporter.aci-monitoring.svc.cluster.local:9643
+    - job_name: 'aci_scale'
+      scrape_interval: 5m
+      scrape_timeout: 3m
+      metrics_path: /probe
+grafana:
+  # Configure persistent storage, in this example a storageClass of type longhorn is used
+  # Update this to your needs or remove it if you don't want to use persistent storage
+  persistence:
+    type: pvc
+    enabled: true
+    storageClassName: longhorn
+  # In my cluster I use a nginx ingress controller to expose Grafana
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hosts:
+      - grafana.ingress.f2k8s1.cam.ciscolabs.com
+    path: /
+  grafana.ini:
+    server:
+      # Update the grafana root_url to be the same as the ingress one
+      root_url: http://grafana.ingress.f2k8s1.cam.ciscolabs.com
+serviceMonitor:
+  insecureSkipVerify: true

@@ -1,0 +1,1486 @@
+{
+    "annotations": {
+      "list": [
+        {
+          "builtIn": 1,
+          "datasource": {
+            "type": "datasource",
+            "uid": "grafana"
+          },
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "target": {
+            "limit": 100,
+            "matchAny": false,
+            "tags": [],
+            "type": "dashboard"
+          },
+          "type": "dashboard"
+        }
+      ]
+    },
+    "editable": true,
+    "fiscalYearStartMonth": 0,
+    "graphTooltip": 0,
+    "id": 252,
+    "links": [],
+    "liveNow": false,
+    "panels": [
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "#EAB839",
+                  "value": 0.7
+                },
+                {
+                  "color": "red",
+                  "value": 0.8
+                }
+              ]
+            },
+            "unit": "percentunit"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 8,
+          "x": 0,
+          "y": 0
+        },
+        "id": 38,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "text": {},
+          "textMode": "auto"
+        },
+        "pluginVersion": "10.1.5",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "editorMode": "code",
+            "exemplar": false,
+            "expr": "topk($top,\n  aci_node_scale_ctx{fabric=~\"$fabric\",nodeid=~\"$nodeid\",class=\"l3Dom\"} / on(fabric,nodeid)\n  (\n    aci_node_vrf_capacity{fabric=~\"$fabric\",nodeid=~\"$nodeid\"} and ignoring(configured_profile)aci_node_active_scale_profile{fabric=~\"$fabric\",nodeid=~\"$nodeid\"}\n  )\n) > 0",
+            "format": "time_series",
+            "hide": false,
+            "instant": false,
+            "legendFormat": "{{fabric}} - {{nodeid}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "VRFs",
+        "transformations": [
+          {
+            "id": "configFromData",
+            "options": {
+              "applyTo": {
+                "id": "byFrameRefID",
+                "options": "A"
+              },
+              "configRefId": "B",
+              "mappings": [
+                {
+                  "fieldName": "{__name__=\"aci_node_max_vrf\", aci=\"ACI Fabric1\", active_profile=\"default\", fabric=\"fab1\", instance=\"fab1\", job=\"aci\", nodeid=\"101\", podid=\"1\"}",
+                  "handlerKey": "max"
+                }
+              ]
+            }
+          }
+        ],
+        "type": "stat"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "#EAB839",
+                  "value": 0.7
+                },
+                {
+                  "color": "red",
+                  "value": 0.8
+                }
+              ]
+            },
+            "unit": "percentunit"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 8,
+          "x": 8,
+          "y": 0
+        },
+        "id": 39,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "text": {},
+          "textMode": "auto"
+        },
+        "pluginVersion": "10.1.5",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "editorMode": "code",
+            "exemplar": false,
+            "expr": "topk($top,\n  aci_node_scale_ctx{fabric=~\"$fabric\",nodeid=~\"$nodeid\",class=\"l2BD\"} / on(fabric,nodeid)\n  (\n    aci_node_bd_capacity{fabric=~\"$fabric\",nodeid=~\"$nodeid\"} and ignoring(configured_profile)aci_node_active_scale_profile{fabric=~\"$fabric\",nodeid=~\"$nodeid\"}\n  )\n) > 0",
+            "format": "time_series",
+            "hide": false,
+            "instant": false,
+            "legendFormat": "{{fabric}} - {{nodeid}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "BDs",
+        "transformations": [
+          {
+            "id": "configFromData",
+            "options": {
+              "applyTo": {
+                "id": "byFrameRefID",
+                "options": "A"
+              },
+              "configRefId": "B",
+              "mappings": [
+                {
+                  "fieldName": "{__name__=\"aci_node_max_vrf\", aci=\"ACI Fabric1\", active_profile=\"default\", fabric=\"fab1\", instance=\"fab1\", job=\"aci\", nodeid=\"101\", podid=\"1\"}",
+                  "handlerKey": "max"
+                }
+              ]
+            }
+          }
+        ],
+        "type": "stat"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "#EAB839",
+                  "value": 0.7
+                },
+                {
+                  "color": "red",
+                  "value": 0.8
+                }
+              ]
+            },
+            "unit": "percentunit"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 8,
+          "x": 16,
+          "y": 0
+        },
+        "id": 40,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto"
+        },
+        "pluginVersion": "10.1.5",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "editorMode": "code",
+            "exemplar": false,
+            "expr": "topk($top, aci_node_scale_ctx{fabric=~\"$fabric\",nodeid=~\"$nodeid\",class=\"fvEpP\"} / on(fabric,nodeid)\n  (\n    aci_node_epg_capacity{fabric=~\"$fabric\",nodeid=~\"$nodeid\"} and ignoring(configured_profile)aci_node_active_scale_profile{fabric=~\"$fabric\",nodeid=~\"$nodeid\"}\n  )\n> 0)",
+            "format": "time_series",
+            "hide": false,
+            "instant": false,
+            "interval": "$__interval",
+            "legendFormat": "{{fabric}} - {{nodeid}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "EPGs",
+        "transformations": [],
+        "type": "stat"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [],
+            "noValue": "All Nodes = 0",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "#EAB839",
+                  "value": 0.7
+                },
+                {
+                  "color": "red",
+                  "value": 0.8
+                }
+              ]
+            },
+            "unit": "percentunit"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 8,
+          "x": 0,
+          "y": 4
+        },
+        "id": 41,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "text": {},
+          "textMode": "auto"
+        },
+        "pluginVersion": "10.1.5",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "editorMode": "code",
+            "exemplar": false,
+            "expr": "topk($top,\n  aci_node_scale_ctx{fabric=~\"$fabric\",nodeid=~\"$nodeid\",class=\"fvEPSelectorDef\"} / on(fabric,nodeid)\n  (\n    aci_node_esgIp_capacity{fabric=~\"$fabric\",nodeid=~\"$nodeid\"} and ignoring(configured_profile)aci_node_active_scale_profile{fabric=~\"$fabric\",nodeid=~\"$nodeid\"}\n  )\n)  > 0",
+            "format": "time_series",
+            "hide": false,
+            "instant": false,
+            "legendFormat": "IP Selectior {{fabric}} - {{nodeid}} ",
+            "range": true,
+            "refId": "A"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "editorMode": "code",
+            "expr": "topk($top,\n  aci_node_scale_ctx{fabric=~\"$fabric\",nodeid=~\"$nodeid\",class=\"fvMacBdSelectorDef\"} / on(fabric,nodeid)\n  (\n    aci_node_max_esgMac{fabric=~\"$fabric\",nodeid=~\"$nodeid\"} and ignoring(configured_profile)aci_node_active_scale_profile{fabric=~\"$fabric\",nodeid=~\"$nodeid\"}\n  )\n) != 0",
+            "hide": false,
+            "legendFormat": "Mac Selectior {{fabric}} - {{nodeid}} ",
+            "range": true,
+            "refId": "B"
+          }
+        ],
+        "title": "ESGs Selectors",
+        "transformations": [],
+        "type": "stat"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "#EAB839",
+                  "value": 0.7
+                },
+                {
+                  "color": "red",
+                  "value": 0.8
+                }
+              ]
+            },
+            "unit": "percentunit"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 8,
+          "x": 8,
+          "y": 4
+        },
+        "id": 42,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "text": {},
+          "textMode": "auto"
+        },
+        "pluginVersion": "10.1.5",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "editorMode": "code",
+            "exemplar": false,
+            "expr": "topk($top,\n  aci_node_mac_current{fabric=~\"$fabric\",nodeid=~\"$nodeid\"} / aci_node_mac_capacity{fabric=~\"$fabric\",nodeid=~\"$nodeid\"} \n) > 0",
+            "format": "time_series",
+            "hide": false,
+            "instant": false,
+            "legendFormat": "{{fabric}} - {{nodeid}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "MAC",
+        "transformations": [
+          {
+            "id": "configFromData",
+            "options": {
+              "applyTo": {
+                "id": "byFrameRefID",
+                "options": "A"
+              },
+              "configRefId": "B",
+              "mappings": [
+                {
+                  "fieldName": "{__name__=\"aci_node_max_vrf\", aci=\"ACI Fabric1\", active_profile=\"default\", fabric=\"fab1\", instance=\"fab1\", job=\"aci\", nodeid=\"101\", podid=\"1\"}",
+                  "handlerKey": "max"
+                }
+              ]
+            }
+          }
+        ],
+        "type": "stat"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "#EAB839",
+                  "value": 0.7
+                },
+                {
+                  "color": "red",
+                  "value": 0.8
+                }
+              ]
+            },
+            "unit": "percentunit"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 8,
+          "x": 16,
+          "y": 4
+        },
+        "id": 43,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "text": {},
+          "textMode": "auto"
+        },
+        "pluginVersion": "10.1.5",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "editorMode": "code",
+            "exemplar": false,
+            "expr": "topk($top,\n  aci_node_ipv4_current{fabric=~\"$fabric\",nodeid=~\"$nodeid\"} / on(fabric,nodeid)\n  (\n    aci_node_ipv4_capacity{fabric=~\"$fabric\",nodeid=~\"$nodeid\"} and ignoring(configured_profile)aci_node_active_scale_profile{fabric=~\"$fabric\",nodeid=~\"$nodeid\"}\n  )\n) > 0",
+            "format": "time_series",
+            "hide": false,
+            "instant": false,
+            "legendFormat": "{{fabric}} - {{nodeid}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "IPv4",
+        "transformations": [],
+        "type": "stat"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [],
+            "noValue": "All Nodes = 0",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "#EAB839",
+                  "value": 0.7
+                },
+                {
+                  "color": "red",
+                  "value": 0.8
+                }
+              ]
+            },
+            "unit": "percentunit"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 8,
+          "x": 0,
+          "y": 8
+        },
+        "id": 44,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "text": {},
+          "textMode": "auto"
+        },
+        "pluginVersion": "10.1.5",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "editorMode": "code",
+            "exemplar": false,
+            "expr": "topk($top,\n  aci_node_ipv6_current{fabric=~\"$fabric\",nodeid=~\"$nodeid\"} / on(fabric,nodeid)\n  (\n    aci_node_ipv6_capacity{fabric=~\"$fabric\",nodeid=~\"$nodeid\"} and ignoring(configured_profile)aci_node_active_scale_profile{fabric=~\"$fabric\",nodeid=~\"$nodeid\"}\n  )\n) > 0",
+            "format": "time_series",
+            "hide": false,
+            "instant": false,
+            "legendFormat": "{{fabric}} - {{nodeid}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "IPv6",
+        "transformations": [
+          {
+            "id": "configFromData",
+            "options": {
+              "applyTo": {
+                "id": "byFrameRefID",
+                "options": "A"
+              },
+              "configRefId": "B",
+              "mappings": [
+                {
+                  "fieldName": "{__name__=\"aci_node_max_vrf\", aci=\"ACI Fabric1\", active_profile=\"default\", fabric=\"fab1\", instance=\"fab1\", job=\"aci\", nodeid=\"101\", podid=\"1\"}",
+                  "handlerKey": "max"
+                }
+              ]
+            }
+          }
+        ],
+        "type": "stat"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "displayName": "${__series.name}",
+            "mappings": [],
+            "noValue": "All Nodes = 0",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "#EAB839",
+                  "value": 0.7
+                },
+                {
+                  "color": "red",
+                  "value": 0.8
+                }
+              ]
+            },
+            "unit": "percentunit"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 8,
+          "x": 8,
+          "y": 8
+        },
+        "id": 45,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "text": {},
+          "textMode": "auto"
+        },
+        "pluginVersion": "10.1.5",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "editorMode": "code",
+            "exemplar": false,
+            "expr": "topk($top,\n  (aci_node_mcast_cum{fabric=~\"$fabric\",nodeid=~\"$nodeid\"} - aci_node_mcast_base{fabric=~\"$fabric\",nodeid=~\"$nodeid\"})\n   /\n   (aci_node_mcast_capacity_cum{fabric=~\"$fabric\",nodeid=~\"$nodeid\"} - aci_node_mcast_capacity_base{fabric=~\"$fabric\",nodeid=~\"$nodeid\"})\n) > 0",
+            "format": "time_series",
+            "hide": false,
+            "instant": false,
+            "legendFormat": "{{fabric}} - {{nodeid}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "MCAST Routes",
+        "transformations": [
+          {
+            "id": "configFromData",
+            "options": {
+              "applyTo": {
+                "id": "byFrameRefID",
+                "options": "A"
+              },
+              "configRefId": "B",
+              "mappings": [
+                {
+                  "fieldName": "{__name__=\"aci_node_max_vrf\", aci=\"ACI Fabric1\", active_profile=\"default\", fabric=\"fab1\", instance=\"fab1\", job=\"aci\", nodeid=\"101\", podid=\"1\"}",
+                  "handlerKey": "max"
+                }
+              ]
+            }
+          }
+        ],
+        "type": "stat"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "#EAB839",
+                  "value": 0.7
+                },
+                {
+                  "color": "dark-red",
+                  "value": 0.8
+                }
+              ]
+            },
+            "unit": "percentunit"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 8,
+          "x": 16,
+          "y": 8
+        },
+        "id": 48,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "text": {},
+          "textMode": "auto"
+        },
+        "pluginVersion": "10.1.5",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "editorMode": "code",
+            "exemplar": false,
+            "expr": "topk($top,\n  (aci_node_vlan_cum{fabric=~\"$fabric\",nodeid=~\"$nodeid\"} - aci_node_vlan_base{fabric=~\"$fabric\",nodeid=~\"$nodeid\"})\n  /\n  (aci_node_vlan_capacity_cum{fabric=~\"$fabric\",nodeid=~\"$nodeid\"} - aci_node_vlan_capacity_base{fabric=~\"$fabric\",nodeid=~\"$nodeid\"})\n) > 0",
+            "format": "time_series",
+            "hide": false,
+            "instant": false,
+            "legendFormat": "{{fabric}} - {{nodeid}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "VLANs",
+        "transformations": [
+          {
+            "id": "configFromData",
+            "options": {
+              "applyTo": {
+                "id": "byFrameRefID",
+                "options": "A"
+              },
+              "configRefId": "B",
+              "mappings": [
+                {
+                  "fieldName": "{__name__=\"aci_node_max_vrf\", aci=\"ACI Fabric1\", active_profile=\"default\", fabric=\"fab1\", instance=\"fab1\", job=\"aci\", nodeid=\"101\", podid=\"1\"}",
+                  "handlerKey": "max"
+                }
+              ]
+            }
+          }
+        ],
+        "type": "stat"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [],
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "#EAB839",
+                  "value": 0.7
+                },
+                {
+                  "color": "red",
+                  "value": 0.8
+                }
+              ]
+            },
+            "unit": "percentunit"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 8,
+          "x": 0,
+          "y": 12
+        },
+        "id": 37,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "text": {},
+          "textMode": "auto"
+        },
+        "pluginVersion": "10.1.5",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "editorMode": "code",
+            "exemplar": false,
+            "expr": "topk($top,\n  (aci_node_policy_cum{fabric=~\"$fabric\",nodeid=~\"$nodeid\"} - aci_node_policy_base{fabric=~\"$fabric\",nodeid=~\"$nodeid\"})\n  /\n  (aci_node_policy_capacity_cum{fabric=~\"$fabric\",nodeid=~\"$nodeid\"} - aci_node_policy_capacity_base{fabric=~\"$fabric\",nodeid=~\"$nodeid\"})\n) > 0",
+            "format": "time_series",
+            "hide": false,
+            "instant": false,
+            "legendFormat": "{{fabric}} - {{nodeid}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "TCAM",
+        "transformations": [],
+        "type": "stat"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [],
+            "noValue": "All Nodes = 0",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "#EAB839",
+                  "value": 0.7
+                },
+                {
+                  "color": "red",
+                  "value": 0.8
+                }
+              ]
+            },
+            "unit": "percentunit"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 8,
+          "x": 8,
+          "y": 12
+        },
+        "id": 49,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "text": {},
+          "textMode": "auto"
+        },
+        "pluginVersion": "10.1.5",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "editorMode": "code",
+            "exemplar": false,
+            "expr": "topk($top,\n  aci_node_lpm_current{fabric=~\"$fabric\",nodeid=~\"$nodeid\"} / on(fabric,nodeid)\n  ( \n    aci_node_lpm_capacity{fabric=~\"$fabric\",nodeid=~\"$nodeid\"} and ignoring(configured_profile)aci_node_active_scale_profile{fabric=~\"$fabric\",nodeid=~\"$nodeid\"}\n  )\n) > 0",
+            "format": "time_series",
+            "hide": false,
+            "instant": false,
+            "legendFormat": "{{fabric}} - {{nodeid}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "LPM",
+        "transformations": [
+          {
+            "id": "configFromData",
+            "options": {
+              "applyTo": {
+                "id": "byFrameRefID",
+                "options": "A"
+              },
+              "configRefId": "B",
+              "mappings": [
+                {
+                  "fieldName": "{__name__=\"aci_node_max_vrf\", aci=\"ACI Fabric1\", active_profile=\"default\", fabric=\"fab1\", instance=\"fab1\", job=\"aci\", nodeid=\"101\", podid=\"1\"}",
+                  "handlerKey": "max"
+                }
+              ]
+            }
+          }
+        ],
+        "type": "stat"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "#EAB839",
+                  "value": 0.7
+                },
+                {
+                  "color": "red",
+                  "value": 0.8
+                }
+              ]
+            },
+            "unit": "percentunit"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 8,
+          "x": 16,
+          "y": 12
+        },
+        "id": 50,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "text": {},
+          "textMode": "auto"
+        },
+        "pluginVersion": "10.1.5",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "editorMode": "code",
+            "exemplar": false,
+            "expr": "topk($top,\n  (aci_node_slash32_cum{fabric=~\"$fabric\",nodeid=~\"$nodeid\"} - aci_node_slash32_base{fabric=~\"$fabric\",nodeid=~\"$nodeid\"})\n  / on(fabric,nodeid)\n  (\n    aci_node_slash32_capacity{fabric=~\"$fabric\",nodeid=~\"$nodeid\"} and ignoring(configured_profile)aci_node_active_scale_profile{fabric=~\"$fabric\",nodeid=~\"$nodeid\"}\n  )\n) > 0",
+            "format": "time_series",
+            "hide": false,
+            "instant": false,
+            "legendFormat": "{{fabric}} - {{nodeid}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "/32 Routes",
+        "transformations": [
+          {
+            "id": "configFromData",
+            "options": {
+              "applyTo": {
+                "id": "byFrameRefID",
+                "options": "A"
+              },
+              "configRefId": "B",
+              "mappings": [
+                {
+                  "fieldName": "{__name__=\"aci_node_max_vrf\", aci=\"ACI Fabric1\", active_profile=\"default\", fabric=\"fab1\", instance=\"fab1\", job=\"aci\", nodeid=\"101\", podid=\"1\"}",
+                  "handlerKey": "max"
+                }
+              ]
+            }
+          }
+        ],
+        "type": "stat"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [],
+            "noValue": "All Nodes = 0",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "#EAB839",
+                  "value": 0.7
+                },
+                {
+                  "color": "red",
+                  "value": 0.8
+                }
+              ]
+            },
+            "unit": "percentunit"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 8,
+          "x": 0,
+          "y": 16
+        },
+        "id": 47,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "text": {},
+          "textMode": "auto"
+        },
+        "pluginVersion": "10.1.5",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "editorMode": "code",
+            "exemplar": false,
+            "expr": "topk($top,\n  (aci_node_labels_cum{fabric=~\"$fabric\",nodeid=~\"$nodeid\"} - aci_node_labels_base{fabric=~\"$fabric\",nodeid=~\"$nodeid\"})\n   /\n   (aci_node_labels_capacity_cum{fabric=~\"$fabric\",nodeid=~\"$nodeid\"} - aci_node_labels_capacity_base{fabric=~\"$fabric\",nodeid=~\"$nodeid\"})\n) > 0",
+            "format": "time_series",
+            "hide": false,
+            "instant": false,
+            "legendFormat": "{{fabric}} - {{nodeid}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "Labels",
+        "transformations": [],
+        "type": "stat"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 8,
+          "x": 8,
+          "y": 16
+        },
+        "id": 52,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto"
+        },
+        "pluginVersion": "10.1.5",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "editorMode": "code",
+            "exemplar": false,
+            "expr": "sum(aci_fabric_node_info{role=\"controller\",fabric=~\"$fabric\"})",
+            "hide": false,
+            "instant": false,
+            "legendFormat": "controller",
+            "range": true,
+            "refId": "C"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "editorMode": "code",
+            "exemplar": false,
+            "expr": "sum(aci_fabric_node_info{role=\"leaf\",fabric=~\"$fabric\"})",
+            "hide": false,
+            "instant": false,
+            "legendFormat": "Leaf",
+            "range": true,
+            "refId": "B"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "editorMode": "code",
+            "exemplar": false,
+            "expr": "sum(aci_fabric_node_info{role=\"spine\",fabric=~\"$fabric\"})",
+            "instant": false,
+            "legendFormat": "Spine",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "Nodes",
+        "type": "stat"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [],
+            "noValue": "All Nodes = 0",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "#EAB839",
+                  "value": 0.7
+                },
+                {
+                  "color": "red",
+                  "value": 0.8
+                }
+              ]
+            },
+            "unit": "percentunit"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 8,
+          "x": 16,
+          "y": 16
+        },
+        "id": 51,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "text": {},
+          "textMode": "auto"
+        },
+        "pluginVersion": "10.1.5",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "editorMode": "code",
+            "exemplar": false,
+            "expr": "topk($top,\n  ( aci_node_slash128_current{fabric=~\"$fabric\",nodeid=~\"$nodeid\"} - aci_node_slash128_base{fabric=~\"$fabric\",nodeid=~\"$nodeid\"}) / on(fabric,nodeid) \n  ( \n    aci_node_slash128_capacity{fabric=~\"$fabric\",nodeid=~\"$nodeid\"} and ignoring(configured_profile)aci_node_active_scale_profile{fabric=~\"$fabric\",nodeid=~\"$nodeid\"}\n  )\n) > 0",
+            "format": "time_series",
+            "hide": false,
+            "instant": false,
+            "legendFormat": "{{fabric}} - {{nodeid}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "/128 Routes",
+        "transformations": [
+          {
+            "id": "configFromData",
+            "options": {
+              "applyTo": {
+                "id": "byFrameRefID",
+                "options": "A"
+              },
+              "configRefId": "B",
+              "mappings": [
+                {
+                  "fieldName": "{__name__=\"aci_node_max_vrf\", aci=\"ACI Fabric1\", active_profile=\"default\", fabric=\"fab1\", instance=\"fab1\", job=\"aci\", nodeid=\"101\", podid=\"1\"}",
+                  "handlerKey": "max"
+                }
+              ]
+            }
+          }
+        ],
+        "type": "stat"
+      }
+    ],
+    "refresh": "",
+    "revision": 1,
+    "schemaVersion": 38,
+    "style": "dark",
+    "tags": [],
+    "templating": {
+      "list": [
+        {
+          "current": {
+            "selected": false,
+            "text": "All",
+            "value": "$__all"
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "definition": "label_values(fabric)",
+          "hide": 0,
+          "includeAll": true,
+          "label": "Fabric",
+          "multi": false,
+          "name": "fabric",
+          "options": [],
+          "query": {
+            "query": "label_values(fabric)",
+            "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          },
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 3,
+          "tagValuesQuery": "",
+          "tagsQuery": "",
+          "type": "query",
+          "useTags": false
+        },
+        {
+          "current": {
+            "selected": false,
+            "text": "All",
+            "value": "$__all"
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "definition": "query_result(aci_fabric_node_info{fabric=~\"$fabric\"})",
+          "hide": 0,
+          "includeAll": true,
+          "label": "Nodeid",
+          "multi": false,
+          "name": "nodeid",
+          "options": [],
+          "query": {
+            "query": "query_result(aci_fabric_node_info{fabric=~\"$fabric\"})",
+            "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          },
+          "refresh": 1,
+          "regex": "/nodeid=\"(.*?)\"/",
+          "skipUrlSync": false,
+          "sort": 3,
+          "type": "query"
+        },
+        {
+          "current": {
+            "selected": false,
+            "text": "3",
+            "value": "3"
+          },
+          "hide": 0,
+          "includeAll": false,
+          "label": "Top",
+          "multi": false,
+          "name": "top",
+          "options": [
+            {
+              "selected": true,
+              "text": "5",
+              "value": "5"
+            },
+            {
+              "selected": false,
+              "text": "10",
+              "value": "10"
+            },
+            {
+              "selected": false,
+              "text": "50",
+              "value": "50"
+            },
+            {
+              "selected": false,
+              "text": "1000",
+              "value": "1000"
+            }
+          ],
+          "query": "5,10,50,1000",
+          "queryValue": "",
+          "skipUrlSync": false,
+          "type": "custom"
+        }
+      ]
+    },
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "timepicker": {
+      "refresh_intervals": [
+        "10s",
+        "30s",
+        "1m",
+        "5m",
+        "15m",
+        "30m",
+        "1h",
+        "2h",
+        "1d"
+      ]
+    },
+    "timezone": "",
+    "title": "Capacity ACI",
+    "uid": "Oevv7iDMM",
+    "version": 74,
+    "weekStart": ""
+  }
