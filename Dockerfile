@@ -1,4 +1,4 @@
-FROM golang:alpine
+FROM golang:alpine as builder
 
 # Set necessary environmet variables needed for our image
 ENV GO111MODULE=on \
@@ -20,11 +20,14 @@ COPY . .
 # Build the application
 RUN go build -o aci-exporter  *.go
 
+
+FROM alpine
+
 # Move to /dist directory as the place for resulting binary folder
 WORKDIR /dist
 
 # Copy binary from build to main folder
-RUN cp /build/aci-exporter .
+COPY --from=builder /build/aci-exporter .
 
 # Export necessary port
 EXPOSE 9643

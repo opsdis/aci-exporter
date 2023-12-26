@@ -61,6 +61,7 @@ whole property value.
         regex: "^(?P<state>.*)"
 ```
 
+
 ## Group class queries
 Group queries group a number of class queries under a single metrics name, unit, help and type. Both individual 
 and common labels are supported.
@@ -79,6 +80,15 @@ aci_nodes{aci="ACI Fabric1",fabric="cisco_sandbox",node="spine"} 3
 aci_nodes{aci="ACI Fabric1",fabric="cisco_sandbox",node="leaf"} 7
 aci_nodes{aci="ACI Fabric1",fabric="cisco_sandbox",node="controller"} 1
 ```
+
+## Static labels
+For all query types its possible to add a list of static labels, like:  
+```yaml
+        staticlabels:
+          - key: datacenter
+            value: dc01
+```
+See `example-config.yaml` for example.
 
 ## Built-in queries  
 The export has some standard metric "built-in". These are:

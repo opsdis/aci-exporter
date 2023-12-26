@@ -1,0 +1,840 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aci-exporter
+data:
+  config.yaml: |
+    # Exporter port
+    port: tcp://0.0.0.0:9643
+    # Configuration file name default without postfix
+    config: config
+    # The prefix of the metrics
+    prefix: aci_
+
+    # Profiles for different fabrics
+    fabrics:
+      # This is the Cisco provided sandbox that is open for testing
+      fab1:
+        # Apic username
+        username: admin
+        # Apic password
+        password: <PASS>
+        # The available apic controllers
+        # The aci-exporter will use the first apic it can successfully login to, starting with the first in the list
+        apic:
+          - https://<APIC_1>
+      fab2:
+        # Apic username
+        username: admin
+        # Apic password
+        password: <PASS>
+        # The available apic controllers
+        # The aci-exporter will use the first apic it can successfully login to, starting with the first in the list
+        apic:
+          - https://<APIC_1>
+          - https://<APIC_2>
+          - https://<APIC_3>
+
+
+    # Http client settings used to access apic
+    httpclient:
+      #Ignore invalid Certificates
+      insecurehttps: true
+      keepalive: 120
+      timeout: 60
+      # Request 1000 objects per page
+      pagesize: 1000
+      # Make the request parallel
+      # Note: for parallel_paging to work all the queries needs to ensure the objects are returned in order.
+      # The simplest way to do that is to add query_parameter: '?order-by=<class_name>.dn' to the query
+      parallel_paging: true
+
+    # The query sections define queries that should be ran by all profiles
+
+    #
+    # ATTENTION
+    # All queries might not work in your environment depending on the permission your API user is granted or if you
+    # running against a real or simulated API environment.
+    #
+
+    # Class queries
+    class_queries:
+      fabric_node_info:
+        # Get all the fabric nodes (Controllers, Spines and Leaves)
+        class_name: fabricNode
+        query_parameter: '?order-by=fabricNode.dn'
+        metrics:
+          - name: fabric_node
+            # In this case we are not looking for a value just the labels for info
+            value_name: X
+            type: "counter"
+            help: "Returns the info of the infrastructure apic node"
+            unit: "info"
+            value_calculation: "1"
+        labels:
+          - property_name: fabricNode.attributes.name
+            regex: "^(?P<name>.*)"
+          - property_name: fabricNode.attributes.address
+            regex: "^(?P<ip>.*)"
+          - property_name: fabricNode.attributes.role
+            regex: "^(?P<role>.*)"
+          - property_name: fabricNode.attributes.adminSt
+            regex: "^(?P<adminstatus>.*)"
+          - property_name: fabricNode.attributes.serial
+            regex: "^(?P<serial>.*)"
+          - property_name: fabricNode.attributes.model
+            regex: "^(?P<model>.*)"
+          - property_name: fabricNode.attributes.version
+            regex: "^(?P<model>.*)"
+          - property_name: fabricNode.attributes.dn
+            regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)"
+
+      # Fabric Wide Scale: 
+
+      max_capacity:
+        class_name: fvcapRule
+        # Additional query parameters for the class query, must start with ? and be separated by &
+        query_parameter: '?order-by=fvcapRule.dn&query-target-filter=ne(fvcapRule.userConstraint,"feature-unavailable")'
+        metrics:
+          - name: max_capacity
+            value_name: fvcapRule.attributes.constraint
+            type: gauge
+            help: Returns the max capacity of the fabric
+        labels:
+          - property_name: fvcapRule.attributes.subj
+            regex: "^(?P<class>.*)"
+
+      # Node Scale: To calculate the scale for the nodes we need to:
+      # (1) Load the scale profiles that a node can support configprofileEntity
+      # (2) Detect which scale profile is in use topoctrlFwdScaleProf
+      # (3) Load the various resource usage, once we have this data we can then build dashboards
+
+      ## Load the scale profiles
+      node_scale_profiles:
+        class_name: configprofileEntity
+        query_parameter: '?order-by=configprofileEntity.dn'
+        metrics:
+          - name: node_bd_capacity
+            value_name: configprofileEntity.attributes.bd
+            type: gauge
+            help: Max number of BDs a node supports
+          - name: node_ipv4_capacity
+            value_name: configprofileEntity.attributes.epIpv4
+            type: gauge
+            help: Max number of IPv4 a node supports
+          - name: node_ipv6_capacity
+            value_name: configprofileEntity.attributes.epIpv6
+            type: gauge
+            help: Max number of IPv6 a node supports
+          - name: node_epg_capacity
+            value_name: configprofileEntity.attributes.epg
+            type: gauge
+            help: Max number of EPGs a node supports
+          - name: node_esg_capacity
+            value_name: configprofileEntity.attributes.esg
+            type: gauge
+            help: Max number of ESG a node supports
+          - name: node_esgIp_capacity
+            value_name: configprofileEntity.attributes.esgIp
+            type: gauge
+            help: Max number of IP Based classification for ESGs a node supports
+          - name: node_esgMac_capacity
+            value_name: configprofileEntity.attributes.esgMac
+            type: gauge
+            help: Max number of MAC Based classification for ESGs a node supports
+          - name: node_lpm_capacity
+            value_name: configprofileEntity.attributes.lpm
+            type: gauge
+            help: Max number of Longest Prefix Match a node supports
+          - name: node_slash128_capacity
+            value_name: configprofileEntity.attributes.slash128
+            type: gauge
+            help: Max number of /128 Routes a node supports
+          - name: node_slash32_capacity
+            value_name: configprofileEntity.attributes.slash32
+            type: gauge
+            help: Max number of /32 Routes a node supports
+          - name: max_proxy_db_capacity
+            value_name: configprofileEntity.attributes.syntheticIp
+            type: gauge
+            help: Max capacity of the proxy_db for each spine, the minimum is the max scale for the whole fabric. Ignore values of 0 as those are leaves
+          - name: node_vrf_capacity
+            value_name: configprofileEntity.attributes.vrf
+            type: gauge
+            help: Max number of VRFs a node supports
+        labels:
+          - property_name: configprofileEntity.attributes.dn
+            regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/.*"
+          - property_name: configprofileEntity.attributes.name
+            regex: "^(?P<active_profile>.*)"
+
+      node_active_scale_profile:
+        class_name: topoctrlFwdScaleProf
+        query_parameter: '?order-by=topoctrlFwdScaleProf.dn'
+        metrics:
+          - name: node_active_scale_profile
+            value_name: topoctrlFwdScaleProf.attributes.modTs
+            # Use the time the profile was applied
+            value_regex_transformation: "(?P<date>.*)"
+            value_calculation: "date"
+        labels:
+          - property_name: topoctrlFwdScaleProf.attributes.dn
+            regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/"
+
+          # active_profile "default" is the same as configured_profile "high-policy" this is an inconsistency in the Object model
+          - property_name: topoctrlFwdScaleProf.attributes.profType
+            regex: "^(?P<configured_profile>.*)"
+          - property_name: topoctrlFwdScaleProf.attributes.currentProfile
+            regex: "cfgent-(?P<active_profile>.*)"
+
+      node_tcam_current:
+        class_name: eqptcapacityPolUsage5min
+        query_parameter: '?order-by=eqptcapacityPolUsage5min.dn'
+        metrics:
+          - name: node_policy_cum
+            value_name: eqptcapacityPolUsage5min.attributes.polUsageCum
+            type: "gauge"
+          - name: node_policy_base
+            value_name: eqptcapacityPolUsage5min.attributes.polUsageBase
+            type: "gauge"
+          - name: node_policy_capacity_cum
+            value_name: eqptcapacityPolUsage5min.attributes.polUsageCapCum
+            type: "gauge"
+          - name: node_policy_capacity_base
+            value_name: eqptcapacityPolUsage5min.attributes.polUsageCapBase
+            type: "gauge"
+        labels:
+          - property_name: eqptcapacityPolUsage5min.attributes.dn
+            regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)"
+
+      node_labels_current:
+        class_name: eqptcapacityPGLabelUsage5min
+        query_parameter: '?order-by=eqptcapacityPGLabelUsage5min.dn'
+        metrics:
+          - name: node_labels_cum
+            value_name: eqptcapacityPGLabelUsage5min.attributes.pgLblUsageCum
+            type: "gauge"
+          - name: node_labels_base
+            value_name: eqptcapacityPGLabelUsage5min.attributes.pgLblUsageBase
+            type: "gauge"
+          - name: node_labels_capacity_cum
+            value_name: eqptcapacityPGLabelUsage5min.attributes.pgLblCapCum
+            type: "gauge"
+          - name: node_labels_capacity_base
+            value_name: eqptcapacityPGLabelUsage5min.attributes.pgLblCapBase
+            type: "gauge"
+        labels:
+          - property_name: eqptcapacityPGLabelUsage5min.attributes.dn
+            regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)"
+
+      node_mac_current:
+        class_name: eqptcapacityL2TotalUsage5min
+        query_parameter: '?order-by=eqptcapacityL2TotalUsage5min.dn'
+        metrics:
+          - name: node_mac_current
+            value_name: eqptcapacityL2TotalUsage5min.attributes.totalEpLast
+            type: "gauge"
+          - name: node_mac_capacity
+            value_name: eqptcapacityL2TotalUsage5min.attributes.totalEpCapLast
+            type: "gauge"
+        labels:
+          - property_name: eqptcapacityL2TotalUsage5min.attributes.dn
+            regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)"
+
+      node_ipv4_current:
+        class_name: eqptcapacityL3TotalUsage5min
+        query_parameter: '?order-by=eqptcapacityL3TotalUsage5min.dn'
+        metrics:
+          - name: node_ipv4_current
+            value_name: eqptcapacityL3TotalUsage5min.attributes.v4TotalEpLast
+            type: "gauge"
+        labels:
+          - property_name: eqptcapacityL3TotalUsage5min.attributes.dn
+            regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)"
+
+      node_ipv6_current:
+        class_name: eqptcapacityL3TotalUsage5min
+        query_parameter: '?order-by=eqptcapacityL3TotalUsage5min.dn'
+        metrics:
+          - name: node_ipv6_current
+            value_name: eqptcapacityL3TotalUsage5min.attributes.v6TotalEpLast
+            type: "gauge"
+        labels:
+          - property_name: eqptcapacityL3TotalUsage5min.attributes.dn
+            regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)"
+
+      node_mcast_current:
+        class_name: eqptcapacityMcastUsage5min
+        query_parameter: '?order-by=eqptcapacityMcastUsage5min.dn'
+        metrics:
+          - name: node_mcast_cum
+            value_name: eqptcapacityMcastUsage5min.attributes.localEpCum
+            type: "gauge"
+          - name: node_mcast_base
+            value_name: eqptcapacityMcastUsage5min.attributes.localEpBase
+            type: "gauge"
+          - name: node_mcast_capacity_cum
+            value_name: eqptcapacityMcastUsage5min.attributes.localEpCapCum
+            type: "gauge"
+          - name: node_mcast_capacity_base
+            value_name: eqptcapacityMcastUsage5min.attributes.localEpCapBase
+            type: "gauge"
+        labels:
+          - property_name: eqptcapacityMcastUsage5min.attributes.dn
+            regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)"
+
+      node_vlan_current:
+        class_name: eqptcapacityVlanUsage5min
+        query_parameter: '?order-by=eqptcapacityVlanUsage5min.dn'
+        metrics:
+          - name: node_vlan_cum
+            value_name: eqptcapacityVlanUsage5min.attributes.totalCum
+            type: "gauge"
+          - name: node_vlan_base
+            value_name: eqptcapacityVlanUsage5min.attributes.totalBase
+            type: "gauge"
+          - name: node_vlan_capacity_cum
+            value_name: eqptcapacityVlanUsage5min.attributes.totalCapCum
+            type: "gauge"
+          - name: node_vlan_capacity_base
+            value_name: eqptcapacityVlanUsage5min.attributes.totalCapBase
+            type: "gauge"
+        labels:
+          - property_name: eqptcapacityVlanUsage5min.attributes.dn
+            regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)"
+
+      node_lpm_current:
+        class_name: eqptcapacityPrefixEntries5min
+        query_parameter: '?order-by=eqptcapacityPrefixEntries5min.dn'
+        metrics:
+          - name: node_lpm_current
+            value_name: eqptcapacityPrefixEntries5min.attributes.extNormalizedLast
+            type: "gauge"
+        labels:
+          - property_name: eqptcapacityPrefixEntries5min.attributes.dn
+            regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)"
+
+      node_slash32_current:
+        class_name: eqptcapacityL3v4Usage325min
+        query_parameter: '?order-by=eqptcapacityL3v4Usage325min.dn'
+        metrics:
+          - name: node_slash32_cum
+            value_name: eqptcapacityL3v4Usage325min.attributes.v4TotalCum
+            type: "gauge"
+          - name: node_slash32_base
+            value_name: eqptcapacityL3v4Usage325min.attributes.v4TotalBase
+            type: "gauge"
+
+        labels:
+          - property_name: eqptcapacityL3v4Usage325min.attributes.dn
+            regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)"
+
+      node_slash128_current:
+        class_name: eqptcapacityL3v6Usage1285min
+        query_parameter: '?order-by=eqptcapacityL3v6Usage1285min.dn'
+        metrics:
+          - name: node_slash128_current
+            value_name: eqptcapacityL3v6Usage1285min.attributes.v6TotalCum
+            type: "gauge"
+          - name: node_slash128_base
+            value_name: eqptcapacityL3v6Usage1285min.attributes.v6TotalBase
+            type: "gauge"
+        labels:
+          - property_name: eqptcapacityL3v6Usage1285min.attributes.dn
+            regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)"
+
+      node_scale_ctx:
+      # The class names are a bit confusing:
+        ## fvEpP: EPGs count
+        ## fvEPSelectorDef / fvMacBdSelectorDef : IP / MAC Based ESG Selector
+        ## l3Dom: VRFs
+        class_name: ctxClassCnt
+        query_parameter: '?order-by=ctxClassCnt.dn&rsp-subtree-class=l2BD,fvEpP,l3Dom,fvMacBdSelectorDef,fvEPSelectorDef'
+        metrics:
+          - name: node_scale_ctx
+            value_name: ctxClassCnt.attributes.count
+            type: "gauge"
+        labels:
+          - property_name: ctxClassCnt.attributes.name
+            regex: "^(?P<class>.*)"
+          - property_name: ctxClassCnt.attributes.dn
+            regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)"
+
+      bgp_peers:
+        class_name: bgpPeer
+        query_parameter: '?order-by=bgpPeer.dn&rsp-subtree=children&rsp-subtree-class=bgpPeerEntry'
+        metrics:
+          - name: bgp_peers
+            # As metric I am saving the last time the peer conenction changed state
+            value_name: bgpPeer.children.[.*].attributes.lastFlapTs
+            value_regex_transformation: "(?P<date>.*)"
+            value_calculation: "date"
+        labels:
+          - property_name: bgpPeer.attributes.asn
+            regex: "(?P<asn>.*)"
+          - property_name: bgpPeer.attributes.srcIf
+            regex: "(?P<interface>.*)"
+          - property_name: bgpPeer.attributes.dn
+            regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/bgp/inst/dom-(?P<vrf>.*)/peer-"
+          - property_name: bgpPeer.children.[.*].attributes.flags
+            regex: "(?P<flags>.*)"
+          - property_name: bgpPeer.children.[.*].attributes.type
+            regex: "(?P<type>.*)"
+          - property_name: bgpPeer.children.[.*].attributes.operSt
+            regex: "(?P<oper_state>.*)"
+          - property_name: bgpPeer.children.[.*].attributes.connAttempts
+            regex: "(?P<conn_attempts>.*)"
+          - property_name: bgpPeer.children.[.*].attributes.connDrop
+            regex: "(?P<conn_drop>.*)"
+          - property_name: bgpPeer.children.[.*].attributes.connEst
+            regex: "(?P<conn_est>.*)"
+          - property_name: bgpPeer.children.[.*].attributes.addr
+            regex: "(?P<peer_ip>.*)"
+          - property_name: bgpPeer.children.[.*].attributes.rtrId
+            regex: "(?P<id>.*)"
+      # BGP Peers
+      bgp_peers_af:
+        class_name: bgpPeerAfEntry
+        query_parameter: '?order-by=bgpPeerAfEntry.dn'
+        metrics:
+          - name: bgp_peer_prefix_sent
+            value_name: bgpPeerAfEntry.attributes.pfxSent
+            type: "gauge"
+          - name: bgp_peer_prefix_received
+            value_name: bgpPeerAfEntry.attributes.acceptedPaths
+            type: "gauge"
+        labels:
+          - property_name: bgpPeerAfEntry.attributes.dn
+            regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/bgp/inst/dom-(?P<vrf>.*)/peer-.*\\/ent-\\[(?P<peer_ip>.*)\\]"
+          - property_name: bgpPeerAfEntry.attributes.type
+            regex: "(?P<address_family>.*)"
+      
+      # OSPF Neighbors
+      ospf_neighbors:
+        class_name: ospfAdjEp
+        query_parameter: '?order-by=ospfAdjEp.dn&rsp-subtree-include=required&rsp-subtree-class=ospfAdjStats&rsp-subtree=children'
+        metrics:
+          - name: ospf_neighbors
+            # As metric I am saving the last time the conenction changed state
+            value_name: ospfAdjEp.children.[ospfAdjStats].attributes.lastStChgTs
+            value_regex_transformation: "(?P<date>.*)"
+            value_calculation: "date"
+        labels:
+          - property_name: ospfAdjEp.attributes.dn
+            regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*).*/dom-(?P<vrf>.*)/if-\\[(?P<interface>.*)\\]"
+          - property_name: ospfAdjEp.attributes.area
+            regex: "(?P<area>.*)"
+          - property_name: ospfAdjEp.attributes.id
+            regex: "(?P<id>.*)"
+          - property_name: ospfAdjEp.attributes.operSt
+            regex: "(?P<oper_state>.*)"
+          - property_name: ospfAdjEp.attributes.peerIp
+            regex: "(?P<peer_ip>.*)"
+        staticlabels:
+          - key: type
+            value: ospf
+
+      interface_info:
+        # The ACI class to query
+        class_name: ethpmPhysIf
+        query_parameter: '?order-by=ethpmPhysIf.dn'
+        metrics:
+          # The name of the metrics without prefix and unit
+          - name: interface_oper_speed
+            value_name: ethpmPhysIf.attributes.operSpeed
+            unit: bps
+            type: gauge
+            help: The current operational speed of the interface, in bits per second.
+            value_transform:
+              'unknown':            0
+              '100M':       100000000
+              '1G':        1000000000
+              '10G':      10000000000
+              '25G':      25000000000
+              '40G':      40000000000
+              '100G':    100000000000
+              '400G':    400000000000
+          - name: interface_oper_state
+            # The field in the json that is used as the metric value, qualified path (gjson) under imdata
+            value_name: ethpmPhysIf.attributes.operSt
+            # Type
+            type: gauge
+            # Help text without prefix of metrics name
+            help: The current operational state of the interface. (0=unknown, 1=down, 2=up, 3=link-up)
+            # A string to float64 transform table of the value
+            value_transform:
+              'unknown': 0
+              'down': 1
+              'up': 2
+              'link-up': 3
+        # The labels to extract as regex
+        labels:
+          # The field in the json used to parse the labels from
+          - property_name: ethpmPhysIf.attributes.dn
+            # The regex where the string enclosed in the P<xyz> is the label name
+            regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/phys-\\[(?P<interface>[^\\]]+)\\]/"
+
+      interface_rx_stats:
+        class_name: eqptIngrBytes5min
+        query_parameter: '?order-by=eqptIngrBytes5min.dn'
+        metrics:
+          - name: interface_rx_unicast
+            value_name: eqptIngrBytes5min.attributes.unicastCum
+            type: counter
+            unit: bytes
+            help: The number of unicast bytes received on the interface since it was integrated into the fabric.
+          - name: interface_rx_multicast
+            value_name: eqptIngrBytes5min.attributes.multicastCum
+            type: counter
+            unit: bytes
+            help: The number of multicast bytes received on the interface since it was integrated into the fabric.
+          - name: interface_rx_broadcast
+            value_name: eqptIngrBytes5min.attributes.floodCum
+            type: counter
+            unit: bytes
+            help: The number of broadcast bytes received on the interface since it was integrated into the fabric.
+        labels:
+          - property_name: eqptIngrBytes5min.attributes.dn
+            regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/(?P<interface_type>[a-z]+)-\\[(?P<interface>[^\\]]+)\\]/"
+
+      interface_tx_stats:
+        class_name: eqptEgrBytes5min
+        query_parameter: '?order-by=eqptEgrBytes5min.dn'
+        metrics:
+          - name: interface_tx_unicast
+            value_name: eqptEgrBytes5min.attributes.unicastCum
+            type: counter
+            unit: bytes
+            help: The number of unicast bytes transmitted on the interface since it was integrated into the fabric.
+          - name: interface_tx_multicast
+            value_name: eqptEgrBytes5min.attributes.multicastCum
+            type: counter
+            unit: bytes
+            help: The number of multicast bytes transmitted on the interface since it was integrated into the fabric.
+          - name: interface_tx_broadcast
+            value_name: eqptEgrBytes5min.attributes.floodCum
+            type: counter
+            unit: bytes
+            help: The number of broadcast bytes transmitted on the interface since it was integrated into the fabric.
+        labels:
+          - property_name: eqptEgrBytes5min.attributes.dn
+            regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/(?P<interface_type>[a-z]+)-\\[(?P<interface>[^\\]]+)\\]/"
+
+      interface_rx_err_stats:
+        class_name: eqptIngrDropPkts5min
+        query_parameter: '?order-by=eqptIngrDropPkts5min.dn'
+        metrics:
+          - name: interface_rx_buffer_dropped
+            value_name: eqptIngrDropPkts5min.attributes.bufferCum
+            type: counter
+            unit: pkts
+            help: The number of packets dropped by the interface due to a
+              buffer overrun while receiving since it was integrated into the
+              fabric.
+          - name: interface_rx_error_dropped
+            value_name: eqptIngrDropPkts5min.attributes.errorCum
+            type: counter
+            unit: pkts
+            help: The number of packets dropped by the interface due to a
+              packet error while receiving since it was integrated into the
+              fabric.
+          - name: interface_rx_forwarding_dropped
+            value_name: eqptIngrDropPkts5min.attributes.forwardingCum
+            type: counter
+            unit: pkts
+            help: The number of packets dropped by the interface due to a
+              forwarding issue while receiving since it was integrated into the
+              fabric.
+          - name: interface_rx_loadbal_dropped
+            value_name: eqptIngrDropPkts5min.attributes.lbCum
+            type: counter
+            unit: pkts
+            help: The number of packets dropped by the interface due to a
+              load balancing issue while receiving since it was integrated into
+              the fabric.
+        labels:
+          - property_name: eqptIngrDropPkts5min.attributes.dn
+            regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/(?P<interface_type>[a-z]+)-\\[(?P<interface>[^\\]]+)\\]/"
+
+      interface_tx_err_stats:
+        class_name: eqptEgrDropPkts5min
+        query_parameter: '?order-by=eqptEgrDropPkts5min.dn'
+        metrics:
+          - name: interface_tx_queue_dropped
+            value_name: eqptEgrDropPkts5min.attributes.afdWredCum
+            type: counter
+            unit: pkts
+            help: The number of packets dropped by the interface during queue
+              management while transmitting since it was integrated into the
+              fabric.
+          - name: interface_tx_buffer_dropped
+            value_name: eqptEgrDropPkts5min.attributes.bufferCum
+            type: counter
+            unit: pkts
+            help: The number of packets dropped by the interface due to a
+              buffer overrun while transmitting since it was integrated into the
+              fabric.
+          - name: interface_tx_error_dropped
+            value_name: eqptEgrDropPkts5min.attributes.errorCum
+            type: counter
+            unit: pkts
+            help: The number of packets dropped by the interface due to a
+              packet error while transmitting since it was integrated into the
+              fabric.
+        labels:
+          - property_name: eqptEgrDropPkts5min.attributes.dn
+            regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/(?P<interface_type>[a-z]+)-\\[(?P<interface>[^\\]]+)\\]/"
+
+      node_cpu:
+        class_name: procSysCPU5min
+        query_parameter: '?order-by=procSysCPU5min.dn'
+        metrics:
+          - name: node_cpu_user
+            value_name: procSysCPU5min.attributes.userAvg
+            type: "gauge"
+            unit: "ratio"
+            help: "Returns the user space cpu load of a fabric node"
+            # Recalculate the metrics value. The expression support simple math expressions - https://github.com/Knetic/govaluate
+            # The name must be value.
+            # This example recalculate percentage like 90 to 0.9
+            value_calculation: "value / 100"
+          - name: node_cpu_kernel
+            value_name: procSysCPU5min.attributes.kernelAvg
+            type: "gauge"
+            unit: "ratio"
+            help: "Returns the kernel space cpu load of a fabric node"
+            value_calculation: "value / 100"
+        labels:
+          - property_name: procSysCPU5min.attributes.dn
+            regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/procsys/CDprocSysCPU5min"
+
+      node_memory:
+        class_name: procSysMem5min
+        query_parameter: '?order-by=procSysMem5min.dn'
+        metrics:
+          - name: node_memory_used
+            value_name: procSysMem5min.attributes.usedLast
+            type: "gauge"
+            unit: "bytes"
+            help: "Returns the used memory of a fabric node"
+          - name: node_memory_free
+            value_name: procSysMem5min.attributes.freeLast
+            type: "gauge"
+            unit: "bytes"
+            help: "Returns the kernel space cpu load of a fabric node"
+        labels:
+          - property_name: procSysMem5min.attributes.dn
+            regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/procsys/CDprocSysMem5min"
+
+      vlans:
+        class_name: fvnsEncapBlk
+        query_parameter: '?order-by=fvnsEncapBlk.dn'
+        metrics:
+          - name: vlans_from
+            value_name: fvnsEncapBlk.attributes.from
+            type: gauge
+            help: The from vlan
+            value_regex_transformation: "v[x]?lan-(.*)"
+          - name: vlans_to
+            value_name: fvnsEncapBlk.attributes.to
+            type: gauge
+            help: The to vlan
+            value_regex_transformation: "v[x]?lan-(.*)"
+          - name: vlan_pool
+            value_name: fvnsEncapBlk.attributes.from
+            type: gauge
+            help: The to vlan
+            value_regex_transformation: "v[x]?lan-(.*)"
+        labels:
+          - property_name: fvnsEncapBlk.attributes.dn
+            regex: "^uni/infra/vlanns-\\[(?P<vlanns>.+)\\]-(?P<allocMode>static|dynamic)/from-\\[vlan-(?P<from>.+)\\]-to-\\[vlan-(?P<to>.+)\\]"
+          - property_name: fvnsEncapBlk.attributes.dn
+            regex: "^uni/infra/vxlanns-(?P<vxlanns>.+)/from-\\[vxlan-(?P<from>.+)\\]-to-\\[vxlan-(?P<to>.+)\\]"
+          - property_name: fvnsEncapBlk.attributes.dn
+            regex: "^uni/vmmp-(?P<vmmDomainType>.*)/dom-(?P<vmmDomain>.*)/usrcustomaggr-(?P<TrunkPGName>.*)/from-\\[vlan-(?P<from>.+)\\]-to-\\[vlan-(?P<to>.+)\\]"
+
+      static_binding_info:
+        class_name: fvAEPg
+        query_parameter: '?order-by=fvnsEncapBlk.dn&rsp-subtree-include=required&rsp-subtree-class=fvRsPathAtt&rsp-subtree=children'
+        metrics:
+          - name: static_binding
+            value_name: fvAEPg.children.[fvRsPathAtt].attributes.encap
+            type: gauge
+            value_regex_transformation: "vlan-(.*)"
+            help: "Static Binding Infos"
+        labels:
+          - property_name: fvAEPg.attributes.dn
+            regex: "^uni/tn-(?P<tenant>.*)/ap-(?P<app>.*)/epg-(?P<epg>.*)"
+          - property_name: fvAEPg.attributes.property_name.attributes.tDn
+            regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/(protpaths|paths)-(?P<nodeid>[1-9][0-9].*)/pathep-\\[(?P<port>.+)\\]"
+          - property_name: fvAEPg.attributes.[.*].attributes.encap
+            regex: "^(?P<encap>.*)"
+
+      epg_port_vlan_binding:
+        class_name: vlanCktEp
+        query_parameter: '?order-by=vlanCktEp.dn&rsp-subtree-include=required&rsp-subtree-class=l2RsPathDomAtt&rsp-subtree=children'
+        metrics:
+          - name: epg_port_vlan_binding
+            value_name: vlanCktEp.children.[l2RsPathDomAtt].attributes.operSt
+            type: gauge
+            value_transform:
+              'unknown': 0
+              'down': 1
+              'up': 2
+              'link-up': 3
+        labels:
+          - property_name: vlanCktEp.attributes.epgDn
+            regex: "^uni/tn-(?P<tenant>.*)/ap-(?P<app>.*)/epg-(?P<epg>.*)"
+          - property_name: vlanCktEp.attributes.encap
+            regex: "^vlan-(?P<vlan>.*)"
+          - property_name: vlanCktEp.attributes.pcTag
+            regex: "^(?P<pcTag>.*)"
+          - property_name: vlanCktEp.children.[l2RsPathDomAtt].attributes.tDn
+            regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]+)/sys/conng/path-\\[(?P<interface>[^\\]]+)\\]"
+
+      epg_port_vxlan_binding:
+        class_name: vxlanCktEp
+        query_parameter: '?order-by=vxlanCktEp.dn&rsp-subtree-include=required&rsp-subtree-class=l2RsPathDomAtt&rsp-subtree=children'
+        metrics:
+          - name: epg_port_vxlan_binding
+            value_name: vxlanCktEp.children.[l2RsPathDomAtt].attributes.operSt
+            type: gauge
+            value_transform:
+              'unknown': 0
+              'down': 1
+              'up': 2
+              'link-up': 3
+        labels:
+          - property_name: vxlanCktEp.attributes.epgDn
+            regex: "^uni/tn-(?P<tenant>.*)/ap-(?P<app>.*)/epg-(?P<epg>.*)"
+          - property_name: vxlanCktEp.attributes.encap
+            regex: "^vxlan-(?P<vxlan>.*)"
+          - property_name: vxlanCktEp.attributes.pcTag
+            regex: "^(?P<pcTag>.*)"
+          - property_name: vxlanCktEp.children.[l2RsPathDomAtt].attributes.tDn
+            regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]+)/sys/conng/path-\\[(?P<interface>[^\\]]+)\\]"
+
+      fru_power_usgage:
+        class_name: eqptFruPower5min
+        query_parameter: '?order-by=eqptFruPower5min.dn'
+        metrics:
+          - name: fru_power_drawn_avg
+            value_name: eqptFruPower5min.attributes.drawnAvg
+            type: gauge
+          - name: fru_power_drawn_last
+            value_name: eqptFruPower5min.attributes.drawnLast
+            type: gauge
+          - name: fru_power_drawn_max
+            value_name: eqptFruPower5min.attributes.drawnMax
+            type: gauge
+          - name: fru_power_drawn_min
+            value_name: eqptFruPower5min.attributes.drawnMin
+            type: gauge
+        labels:
+          - property_name: eqptFruPower5min.attributes.dn
+            regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/ch/(?P<slot>.*[0-9]+)/"
+
+      ps_power_usgage:
+        class_name: eqptPsPower5min
+        query_parameter: '?order-by=eqptPsPower5min.dn'
+        metrics:
+          - name: psu_power_drawn_avg
+            value_name: eqptPsPower5min.attributes.drawnAvg
+          - name: psu_power_drawn_last
+            value_name: eqptPsPower5min.attributes.drawnLast
+          - name: psu_power_drawn_max
+            value_name: eqptPsPower5min.attributes.drawnMax
+          - name: psu_power_drawn_min
+            value_name: eqptPsPower5min.attributes.drawnMin
+          - name: psu_power_drawn_base
+            value_name: eqptPsPower5min.attributes.drawnTrBase
+          - name: psu_power_drawn_ttl
+            value_name: eqptPsPower5min.attributes.drawnTtl
+          - name: psu_supplied_avg
+            value_name: eqptPsPower5min.attributes.suppliedAvg
+          - name: psu_supplied_last
+            value_name: eqptPsPower5min.attributes.suppliedLast
+          - name: psu_supplied_max
+            value_name: eqptPsPower5min.attributes.suppliedMax
+          - name: psu_supplied_min
+            value_name: eqptPsPower5min.attributes.suppliedMin
+          - name: psu_supplied_base
+            value_name: eqptPsPower5min.attributes.suppliedTrBase
+        labels:
+          - property_name: eqptPsPower5min.attributes.dn
+            regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/ch/psuslot-(?P<psuslot>[1-9][0-9]*)/"
+
+    qroup_class_queries:
+      # Gather all different health related metrics
+      health:
+        name: health
+        unit: ratio
+        type: gauge
+        help: Returns health score
+        queries:
+          - node_health:
+            class_name: topSystem
+            query_parameter: "?order-by=topSystem.dn&rsp-subtree-include=health"
+            metrics:
+              - value_name: topSystem.children.@reverse.0.healthInst.attributes.cur
+                value_calculation: "value / 100"
+            labels:
+              - property_name: topSystem.attributes.dn
+                regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys"
+              - property_name: topSystem.attributes.state
+                regex: "^(?P<state>.*)"
+              - property_name: topSystem.attributes.oobMgmtAddr
+                regex: "^(?P<oobMgmtAddr>.*)"
+              - property_name: topSystem.attributes.name
+                regex: "^(?P<name>.*)"
+              - property_name: topSystem.attributes.role
+                regex: "^(?P<role>.*)"
+            # A label for the class query
+            staticlabels:
+              - key: class
+                value: topSystem
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aci-exporter
+  labels:
+    app: aci-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aci-exporter
+  template:
+    metadata:
+      labels:
+        app: aci-exporter
+    spec:
+      containers:
+      - name: aci-exporter
+        image: quay.io/camillo/aci-exporter:issue_37
+        env:
+        - name: ACI_EXPORTER_PORT
+          value: "9643"
+        ports:
+        - containerPort: 9643
+        volumeMounts:
+        - name: aci-exporter
+          mountPath: /etc/aci-exporter
+      volumes:
+      - name: aci-exporter
+        configMap:
+          name: aci-exporter
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aci-exporter
+spec:
+  selector:
+    app: aci-exporter
+  ports:
+    - name: web
+      protocol: TCP
+      port: 9643
+      targetPort: 9643

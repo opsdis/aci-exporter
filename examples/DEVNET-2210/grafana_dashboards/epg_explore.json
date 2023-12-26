@@ -1,0 +1,186 @@
+{
+    "annotations": {
+      "list": [
+        {
+          "builtIn": 1,
+          "datasource": {
+            "type": "grafana",
+            "uid": "-- Grafana --"
+          },
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "type": "dashboard"
+        }
+      ]
+    },
+    "editable": true,
+    "fiscalYearStartMonth": 0,
+    "graphTooltip": 0,
+    "id": 62,
+    "links": [],
+    "liveNow": false,
+    "panels": [
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": "auto",
+              "cellOptions": {
+                "type": "auto"
+              },
+              "filterable": true,
+              "inspect": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 11,
+          "w": 24,
+          "x": 0,
+          "y": 0
+        },
+        "id": 1,
+        "options": {
+          "cellHeight": "sm",
+          "footer": {
+            "countRows": false,
+            "fields": "",
+            "reducer": [
+              "sum"
+            ],
+            "show": false
+          },
+          "frameIndex": 0,
+          "showHeader": true
+        },
+        "pluginVersion": "10.1.5",
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "prometheus"
+            },
+            "editorMode": "code",
+            "exemplar": false,
+            "expr": "aci_epg_port_vxlan_binding{fabric=~\"$fabric\",interface!~\"po[0-9]\"} or aci_epg_port_vlan_binding{fabric=~\"$fabric\",interface!~\"po[0-9]\"}",
+            "format": "table",
+            "instant": true,
+            "key": "Q-6472f59a-250f-4630-b568-47d5463f695d-0",
+            "legendFormat": "__auto",
+            "range": false,
+            "refId": "A"
+          }
+        ],
+        "title": "EPG To Interface",
+        "transformations": [
+          {
+            "id": "labelsToFields",
+            "options": {}
+          },
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "Time": true,
+                "Value": true,
+                "__name__": true,
+                "aci": true,
+                "fabric": false,
+                "instance": true,
+                "job": true,
+                "podid": true
+              },
+              "indexByName": {
+                "Time": 0,
+                "Value": 12,
+                "__name__": 1,
+                "aci": 4,
+                "app": 6,
+                "epg": 7,
+                "fabric": 2,
+                "instance": 9,
+                "interface": 8,
+                "job": 10,
+                "nodeid": 3,
+                "pcTag": 13,
+                "podid": 11,
+                "tenant": 5,
+                "vlan": 14
+              },
+              "renameByName": {}
+            }
+          }
+        ],
+        "type": "table"
+      }
+    ],
+    "refresh": "",
+    "schemaVersion": 38,
+    "style": "dark",
+    "tags": [],
+    "templating": {
+      "list": [
+        {
+          "current": {
+            "selected": false,
+            "text": "sjc-site2",
+            "value": "sjc-site2"
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "definition": "label_values(fabric)",
+          "hide": 0,
+          "includeAll": true,
+          "label": "Fabric",
+          "multi": false,
+          "name": "fabric",
+          "options": [],
+          "query": {
+            "query": "label_values(fabric)",
+            "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          },
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 0,
+          "type": "query"
+        }
+      ]
+    },
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "",
+    "title": "EPG Explore",
+    "uid": "a4f7ea75-6ef6-4639-809a-755684e11ac1",
+    "version": 11,
+    "weekStart": ""
+  }

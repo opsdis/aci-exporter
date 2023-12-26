@@ -9,7 +9,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
-// Copyright 2020 Opsdis AB
+// Copyright 2020-2023 Opsdis
 
 package main
 
@@ -19,9 +19,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/cookiejar"
 	"strconv"
+	"sync"
 	"time"
+
+	"github.com/tidwall/gjson"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -29,13 +31,33 @@ import (
 	"github.com/spf13/viper"
 )
 
-var responseTime = promauto.NewHistogramVec(prometheus.HistogramOpts{
+var responseTimeMetric = promauto.NewHistogramVec(prometheus.HistogramOpts{
 	Name:    MetricsPrefix + "response_time_from_apic",
 	Help:    "Histogram of the time (in seconds) each request took to complete.",
 	Buckets: []float64{0.050, 0.100, 0.200, 0.500, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0},
 },
 	[]string{"fabric", "class", "method", "status"},
 )
+
+var refreshMetric = promauto.NewCounterVec(prometheus.CounterOpts{
+	Name: MetricsPrefix + "auth_refresh",
+	Help: "Authentication refresh counter",
+},
+	[]string{"fabric"},
+)
+
+var refreshFailedMetric = promauto.NewCounterVec(prometheus.CounterOpts{
+	Name: MetricsPrefix + "auth_refresh_failed",
+	Help: "Authentication refresh failed counter",
+},
+	[]string{"fabric"},
+)
+
+type AciToken struct {
+	token  string
+	ttl    int64
+	expire int64
+}
 
 // AciConnection is the connection object
 type AciConnection struct {
@@ -45,19 +67,25 @@ type AciConnection struct {
 	URLMap           map[string]string
 	Headers          map[string]string
 	Client           http.Client
-	responseTime     *prometheus.HistogramVec
+	token            *AciToken
+	tokenMutex       sync.Mutex
+	//responseTime     *prometheus.HistogramVec
 }
 
-func newAciConnction(ctx context.Context, fabricConfig *Fabric) *AciConnection {
-	// Empty cookie jar
-	jar, _ := cookiejar.New(nil)
+var connectionCache = make(map[*Fabric]*AciConnection)
+
+func newAciConnection(ctx context.Context, fabricConfig *Fabric) *AciConnection {
+
+	val, ok := connectionCache[fabricConfig]
+	if ok {
+		return val
+	}
 
 	var httpClient = HTTPClient{
 		InsecureHTTPS:       viper.GetBool("httpclient.insecureHTTPS"),
 		Timeout:             viper.GetInt("httpclient.timeout"),
 		Keepalive:           viper.GetInt("httpclient.keepalive"),
 		Tlshandshaketimeout: viper.GetInt("httpclient.tlshandshaketimeout"),
-		cookieJar:           jar,
 	}.GetClient()
 
 	var headers = make(map[string]string)
@@ -65,26 +93,44 @@ func newAciConnction(ctx context.Context, fabricConfig *Fabric) *AciConnection {
 
 	urlMap := make(map[string]string)
 
-	urlMap["login"] = "/api/aaaLogin.xml"
-	urlMap["logout"] = "/api/aaaLogout.xml"
+	urlMap["login"] = "/api/aaaLogin.json"
+	urlMap["logout"] = "/api/aaaLogout.json"
+	urlMap["refresh"] = "/api/aaaRefresh.json"
 	urlMap["faults"] = "/api/class/faultCountsWithDetails.json"
-	urlMap["aci_name"] = "/api/mo/topology/pod-1/node-1/av.json"
 
-	return &AciConnection{
+	con := &AciConnection{
 		ctx:              ctx,
 		fabricConfig:     fabricConfig,
 		activeController: new(int),
 		URLMap:           urlMap,
 		Headers:          headers,
 		Client:           *httpClient,
-		responseTime:     responseTime,
+		//responseTime:     responseTime,
 	}
+	connectionCache[fabricConfig] = con
+	return connectionCache[fabricConfig]
 }
 
-func (c AciConnection) login() error {
+// login get the existing token if valid or do a full /login
+func (c *AciConnection) login() error {
+
+	err, done := c.tokenProcessing()
+	if done {
+		return err
+	}
+	return c.loginProcessing()
+
+}
+
+// loginProcessing do a full /login
+func (c *AciConnection) loginProcessing() error {
+	c.tokenMutex.Lock()
+	defer c.tokenMutex.Unlock()
 	for i, controller := range c.fabricConfig.Apic {
-		_, status, err := c.doPostXML("login", fmt.Sprintf("%s%s", controller, c.URLMap["login"]),
-			[]byte(fmt.Sprintf("<aaaUser name=%s pwd=%s/>", c.fabricConfig.Username, c.fabricConfig.Password)))
+
+		response, status, err := c.doPostJSON("login", fmt.Sprintf("%s%s", controller, c.URLMap["login"]),
+			[]byte(fmt.Sprintf("{\"aaaUser\":{\"attributes\":{\"name\":\"%s\",\"pwd\":\"%s\"}}}", c.fabricConfig.Username, c.fabricConfig.Password)))
+
 		if err != nil || status != 200 {
 
 			err = fmt.Errorf("failed to login to %s, try next apic", controller)
@@ -92,23 +138,78 @@ func (c AciConnection) login() error {
 			log.WithFields(log.Fields{
 				"requestid": c.ctx.Value("requestid"),
 				"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
+				"token":     fmt.Sprintf("login"),
 			}).Error(err)
 		} else {
+			c.newToken(response)
+
 			*c.activeController = i
 			log.WithFields(log.Fields{
 				"requestid": c.ctx.Value("requestid"),
 				"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
+				"token":     fmt.Sprintf("login"),
 			}).Info(fmt.Sprintf("Using apic %s", controller))
 			return nil
 		}
 	}
 	return fmt.Errorf("failed to login to any apic controllers")
-
 }
 
-func (c AciConnection) logout() bool {
-	_, status, err := c.doPostXML("logout", fmt.Sprintf("%s%s", c.fabricConfig.Apic[*c.activeController], c.URLMap["logout"]),
-		[]byte(fmt.Sprintf("<aaaUser name=%s/>", c.fabricConfig.Username)))
+// tokenProcessing if token are valid reuse or try to do a /refresh
+func (c *AciConnection) tokenProcessing() (error, bool) {
+	if c.token != nil {
+		c.tokenMutex.Lock()
+		defer c.tokenMutex.Unlock()
+		if c.token.expire < time.Now().Unix() {
+			response, status, err := c.get("refresh", fmt.Sprintf("%s%s", c.fabricConfig.Apic[*c.activeController], c.URLMap["refresh"]))
+			if err != nil || status != 200 {
+				//errRe = fmt.Errorf("failed to refresh token %s", c.fabricConfig.Apic[*c.activeController])
+				log.WithFields(log.Fields{
+					"requestid": c.ctx.Value("requestid"),
+					"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
+					"token":     fmt.Sprintf("refersh"),
+				}).Warning(err)
+				refreshFailedMetric.With(prometheus.Labels{
+					"fabric": fmt.Sprintf("%v", c.ctx.Value("fabric"))}).Inc()
+				return err, false
+			} else {
+				c.newToken(response)
+				log.WithFields(log.Fields{
+					"requestid": c.ctx.Value("requestid"),
+					"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
+					"token":     fmt.Sprintf("refersh"),
+				}).Info("refresh token")
+				refreshMetric.With(prometheus.Labels{
+					"fabric": fmt.Sprintf("%v", c.ctx.Value("fabric"))}).Inc()
+				return nil, true
+			}
+		} else {
+			log.WithFields(log.Fields{
+				"requestid": c.ctx.Value("requestid"),
+				"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
+				"token":     fmt.Sprintf("valid"),
+			}).Info("token still valid")
+			return nil, true
+		}
+	}
+	// Need to do /login
+	return nil, false
+}
+
+func (c *AciConnection) newToken(response []byte) {
+	token := gjson.Get(string(response), "imdata.0.aaaLogin.attributes.token").String()
+	ttl := gjson.Get(string(response), "imdata.0.aaaLogin.attributes.refreshTimeoutSeconds").Int()
+
+	c.token = &AciToken{
+		token:  token,
+		ttl:    ttl,
+		expire: time.Now().Unix() + ttl - 60,
+	}
+}
+
+func (c *AciConnection) logout() bool {
+	_, status, err := c.doPostJSON("logout", fmt.Sprintf("%s%s", c.fabricConfig.Apic[*c.activeController], c.URLMap["logout"]),
+		[]byte(fmt.Sprintf("{\"aaaUser\":{\"attributes\":{\"name\":\"%s\"}}}", c.fabricConfig.Username)))
 	if err != nil || status != 200 {
 		log.WithFields(log.Fields{
 			"requestid": c.ctx.Value("requestid"),
@@ -119,8 +220,8 @@ func (c AciConnection) logout() bool {
 	return true
 }
 
-func (c AciConnection) getByQuery(table string) (string, error) {
-	data, err := c.get(table, fmt.Sprintf("%s%s", c.fabricConfig.Apic[*c.activeController], c.URLMap[table]))
+func (c *AciConnection) getByQuery(table string) (string, error) {
+	data, _, err := c.get(table, fmt.Sprintf("%s%s", c.fabricConfig.Apic[*c.activeController], c.URLMap[table]))
 	if err != nil {
 		log.WithFields(log.Fields{
 			"requestid": c.ctx.Value("requestid"),
@@ -131,8 +232,8 @@ func (c AciConnection) getByQuery(table string) (string, error) {
 	return string(data), nil
 }
 
-func (c AciConnection) getByClassQuery(class string, query string) (string, error) {
-	data, err := c.get(class, fmt.Sprintf("%s/api/class/%s.json%s", c.fabricConfig.Apic[*c.activeController], class, query))
+func (c *AciConnection) getByClassQuery(class string, query string) (string, error) {
+	data, _, err := c.get(class, fmt.Sprintf("%s/api/class/%s.json%s", c.fabricConfig.Apic[*c.activeController], class, query))
 	if err != nil {
 		log.WithFields(log.Fields{
 			"requestid": c.ctx.Value("requestid"),
@@ -143,11 +244,11 @@ func (c AciConnection) getByClassQuery(class string, query string) (string, erro
 	return string(data), nil
 }
 
-func (c AciConnection) get(label string, url string) ([]byte, error) {
+func (c *AciConnection) get(label string, url string) ([]byte, int, error) {
 	start := time.Now()
 	body, status, err := c.doGet(url)
 	responseTime := time.Since(start).Seconds()
-	c.responseTime.With(prometheus.Labels{
+	responseTimeMetric.With(prometheus.Labels{
 		"fabric": fmt.Sprintf("%v", c.ctx.Value("fabric")),
 		"class":  label,
 		"method": "GET",
@@ -163,10 +264,10 @@ func (c AciConnection) get(label string, url string) ([]byte, error) {
 		"exec_time": time.Since(start).Microseconds(),
 		"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
 	}).Info("api call fabric")
-	return body, err
+	return body, status, err
 }
 
-func (c AciConnection) doGet(url string) ([]byte, int, error) {
+func (c *AciConnection) doGet(url string) ([]byte, int, error) {
 
 	req, err := http.NewRequest("GET", url, bytes.NewBuffer([]byte{}))
 	if err != nil {
@@ -179,6 +280,23 @@ func (c AciConnection) doGet(url string) ([]byte, int, error) {
 	for k, v := range c.Headers {
 		req.Header.Set(k, v)
 	}
+
+	cookie := http.Cookie{
+		Name:       "APIC-cookie",
+		Value:      c.token.token,
+		Path:       "",
+		Domain:     "",
+		Expires:    time.Time{},
+		RawExpires: "",
+		MaxAge:     0,
+		Secure:     false,
+		HttpOnly:   false,
+		SameSite:   0,
+		Raw:        "",
+		Unparsed:   nil,
+	}
+
+	req.AddCookie(&cookie)
 
 	resp, err := c.Client.Do(req)
 	if err != nil {
@@ -206,7 +324,7 @@ func (c AciConnection) doGet(url string) ([]byte, int, error) {
 	return nil, resp.StatusCode, fmt.Errorf("ACI api returned %d", resp.StatusCode)
 }
 
-func (c AciConnection) doPostXML(label string, url string, requestBody []byte) ([]byte, int, error) {
+func (c *AciConnection) doPostJSON(label string, url string, requestBody []byte) ([]byte, int, error) {
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(requestBody))
 	if err != nil {
@@ -220,12 +338,11 @@ func (c AciConnection) doPostXML(label string, url string, requestBody []byte) (
 	for k, v := range c.Headers {
 		req.Header.Set(k, v)
 	}
-	req.Header.Set("Content-Type", "application/xml")
+	req.Header.Set("Content-Type", "application/json")
 
 	start := time.Now()
 	resp, err := c.Client.Do(req)
-	//cook := resp.Cookies()
-	//print(cook)
+
 	if err != nil {
 		log.WithFields(log.Fields{
 			"requestid": c.ctx.Value("requestid"),
@@ -236,7 +353,7 @@ func (c AciConnection) doPostXML(label string, url string, requestBody []byte) (
 	responseTime := time.Since(start).Seconds()
 	var status = resp.StatusCode
 
-	c.responseTime.With(prometheus.Labels{
+	responseTimeMetric.With(prometheus.Labels{
 		"fabric": fmt.Sprintf("%v", c.ctx.Value("fabric")),
 		"class":  label,
 		"method": "POST",

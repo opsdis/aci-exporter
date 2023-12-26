@@ -9,7 +9,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
-// Copyright 2020 Opsdis AB
+// Copyright 2020-2023 Opsdis
 
 package main
 
@@ -66,7 +66,7 @@ func newAciAPI(ctx context.Context, fabricConfig *Fabric, configQueries AllQueri
 
 	api := &aciAPI{
 		ctx:                   ctx,
-		connection:            *newAciConnction(ctx, fabricConfig),
+		connection:            newAciConnection(ctx, fabricConfig),
 		metricPrefix:          viper.GetString("prefix"),
 		configQueries:         executeQueries.ClassQueries,
 		configCompoundQueries: executeQueries.CompoundClassQueries,
@@ -93,7 +93,7 @@ func newAciAPI(ctx context.Context, fabricConfig *Fabric, configQueries AllQueri
 
 type aciAPI struct {
 	ctx                   context.Context
-	connection            AciConnection
+	connection            *AciConnection
 	metricPrefix          string
 	configQueries         ClassQueries
 	configCompoundQueries CompoundClassQueries
@@ -108,7 +108,7 @@ func (p aciAPI) CollectMetrics() (string, []MetricDefinition, error) {
 	start := time.Now()
 
 	err := p.connection.login()
-	defer p.connection.logout()
+	// defer p.connection.logout()
 
 	if err != nil {
 		metrics = append(metrics, *p.up(0.0))
@@ -348,16 +348,16 @@ func (p aciAPI) getCompoundMetrics(ch chan []MetricDefinition, v *CompoundClassQ
 	metricDefinition.Description.Unit = v.Metrics[0].Unit
 
 	var metrics []Metric
-	for _, classlabel := range v.ClassNames {
+	for _, classLabel := range v.ClassNames {
 		metric := Metric{}
-		data, _ := p.connection.getByClassQuery(classlabel.Class, classlabel.QueryParameter)
-		if classlabel.ValueName == "" {
+		data, _ := p.connection.getByClassQuery(classLabel.Class, classLabel.QueryParameter)
+		if classLabel.ValueName == "" {
 			metric.Value = p.toFloat(gjson.Get(data, fmt.Sprintf("imdata.0.%s", v.Metrics[0].ValueName)).Str)
 		} else {
-			metric.Value = p.toFloat(gjson.Get(data, fmt.Sprintf("imdata.0.%s", classlabel.ValueName)).Str)
+			metric.Value = p.toFloat(gjson.Get(data, fmt.Sprintf("imdata.0.%s", classLabel.ValueName)).Str)
 		}
 		metric.Labels = make(map[string]string)
-		metric.Labels[v.LabelName] = classlabel.Label
+		metric.Labels[v.LabelName] = classLabel.Label
 		metrics = append(metrics, metric)
 	}
 	metricDefinition.Metrics = metrics
@@ -403,12 +403,6 @@ func (p aciAPI) getGroupClassMetrics(ch chan []MetricDefinition, v GroupClassQue
 	metricDefinition.Description.Type = v.Type
 	metricDefinition.Description.Unit = v.Unit
 
-	/*
-		labels := make(map[string]string)
-		for _,v := range v.StaticLabels {
-			labels[v.Key] = v.Value
-		}
-	*/
 	var metrics []Metric
 	metricDefinition.Metrics = metrics
 
@@ -494,8 +488,14 @@ func (p aciAPI) extractClassQueriesData(data string, classQuery *ClassQuery, mv 
 
 			var allChildren []map[string]interface{}
 
-			allChildrenJson := gjson.Get(value.Raw, match[1])
-			json.Unmarshal([]byte(allChildrenJson.Raw), &allChildren)
+			allChildrenJSON := gjson.Get(value.Raw, match[1])
+			err := json.Unmarshal([]byte(allChildrenJSON.Raw), &allChildren)
+			if err != nil {
+				log.WithFields(log.Fields{
+					"error": err,
+				}).Info("Unmarshal json failed")
+				return false
+			}
 
 			for childIndex, child := range allChildren {
 				for childKey, childValue := range child {
@@ -539,8 +539,8 @@ func (p aciAPI) extractClassQueriesData(data string, classQuery *ClassQuery, mv 
 							}
 						}
 
-						childJson, _ := json.Marshal(allChildren[childIndex])
-						addLabels(childLabels, nil, string(childJson), metric)
+						childJSON, _ := json.Marshal(allChildren[childIndex])
+						addLabels(childLabels, nil, string(childJSON), metric)
 
 						// Extract labels from child
 						for _, keyLabel := range childLabels {
@@ -558,7 +558,7 @@ func (p aciAPI) extractClassQueriesData(data string, classQuery *ClassQuery, mv 
 						}
 
 						// extract the metrics value
-						value, err := p.toFloatTransform(gjson.Get(string(childJson), mvLocal.ValueName).Str, mvLocal)
+						value, err := p.toFloatTransform(gjson.Get(string(childJSON), mvLocal.ValueName).Str, mvLocal)
 						if err != nil {
 							continue
 						}
@@ -603,6 +603,7 @@ func addLabels(v []ConfigLabels, sv []StaticLabels, json string, metric Metric) 
 			}
 		}
 	}
+
 	// Add static labels
 	for _, slv := range sv {
 		metric.Labels[slv.Key] = slv.Value

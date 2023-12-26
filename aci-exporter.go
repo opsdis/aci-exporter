@@ -9,7 +9,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
-// Copyright 2020 Opsdis AB
+// Copyright 2020-2023 Opsdis
 
 package main
 
@@ -147,7 +147,6 @@ func main() {
 	var compoundClassQueries = CompoundClassQueries{}
 	err = viper.UnmarshalKey("compound_queries", &compoundClassQueries)
 	if err != nil {
-
 		log.Error("Unable to decode compound_queries into struct - ", err)
 		os.Exit(1)
 	}
@@ -155,7 +154,6 @@ func main() {
 	var groupClassQueries = GroupClassQueries{}
 	err = viper.UnmarshalKey("qroup_class_queries", &groupClassQueries)
 	if err != nil {
-
 		log.Error("Unable to decode compound_queries into struct - ", err)
 		os.Exit(1)
 	}
@@ -174,6 +172,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Overwrite username or password for APIC by environment variables if set
+	for fabricName := range allFabrics {
+		fabricNameAsEnv := strings.ToUpper(strings.ReplaceAll(fabricName, "-", "_"))
+		if val, exists := os.LookupEnv(fmt.Sprintf("%s_FABRICS_%s_USERNAME", ExporterNameAsEnv(), fabricNameAsEnv)); exists == true && val != "" {
+			allFabrics[fabricName].Username = val
+		}
+		if val, exists := os.LookupEnv(fmt.Sprintf("%s_FABRICS_%s_PASSWORD", ExporterNameAsEnv(), fabricNameAsEnv)); exists == true && val != "" {
+			allFabrics[fabricName].Password = val
+		}
+	}
+
 	handler := &HandlerInit{allQueries, allFabrics}
 
 	// Create a Prometheus histogram for response time of the exporter
@@ -186,8 +195,8 @@ func main() {
 	)
 
 	// Setup handler for aci destinations
-	http.Handle("/probe", logcall(promMonitor(http.HandlerFunc(handler.getMonitorMetrics), responseTime, "/probe")))
-	http.Handle("/alive", logcall(promMonitor(http.HandlerFunc(alive), responseTime, "/alive")))
+	http.Handle("/probe", logCall(promMonitor(http.HandlerFunc(handler.getMonitorMetrics), responseTime, "/probe")))
+	http.Handle("/alive", logCall(promMonitor(http.HandlerFunc(alive), responseTime, "/alive")))
 
 	// Setup handler for exporter metrics
 	http.Handle("/metrics", promhttp.HandlerFor(
@@ -232,7 +241,7 @@ func cliQuery(fabric *string, class *string, query *string) string {
 
 	fabricConfig := Fabric{Username: username, Password: password, Apic: apicControllers, AciName: aciName}
 	ctx := context.TODO()
-	con := *newAciConnction(ctx, &fabricConfig)
+	con := *newAciConnection(ctx, &fabricConfig)
 	err = con.login()
 	if err != nil {
 		fmt.Printf("Login error %s", err)
@@ -317,7 +326,7 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 		"requestid": ctx.Value("requestid"),
 		"exec_time": time.Since(start).Microseconds(),
 		"fabric":    fmt.Sprintf("%v", ctx.Value("fabric")),
-	}).Info("processing metrics to prometheus exposition format")
+	}).Info("metrics to prometheus format")
 
 	if openmetrics {
 		w.Header().Set("Content-Type", "application/openmetrics-text; version=0.0.1; charset=utf-8")
@@ -347,19 +356,20 @@ func alive(w http.ResponseWriter, r *http.Request) {
 
 	w.Write([]byte(alive))
 }
+
 func nextRequestID() ksuid.KSUID {
 	return ksuid.New()
 }
 
-func logcall(next http.Handler) http.Handler {
+func logCall(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		start := time.Now()
 
 		lrw := loggingResponseWriter{ResponseWriter: w}
-		requestid := nextRequestID()
+		requestId := nextRequestID()
 
-		ctx := context.WithValue(r.Context(), "requestid", requestid)
+		ctx := context.WithValue(r.Context(), "requestid", requestId)
 		next.ServeHTTP(&lrw, r.WithContext(ctx)) // call original
 
 		w.Header().Set("Content-Length", strconv.Itoa(lrw.length))
@@ -369,11 +379,10 @@ func logcall(next http.Handler) http.Handler {
 			"fabric":    r.URL.Query().Get("target"),
 			"status":    lrw.statusCode,
 			"length":    lrw.length,
-			"requestid": requestid,
+			"requestid": requestId,
 			"exec_time": time.Since(start).Microseconds(),
 		}).Info("api call")
 	})
-
 }
 
 func promMonitor(next http.Handler, ops *prometheus.HistogramVec, endpoint string) http.Handler {
