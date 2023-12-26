@@ -78,9 +78,13 @@ func main() {
 	class := flag.String("class", viper.GetString("class"), "The class name - only cli")
 	query := flag.String("query", viper.GetString("query"), "The query for the class - only cli")
 	fabric := flag.String("fabric", viper.GetString("fabric"), "The fabric name - only cli")
+	versionFlag := flag.Bool("v", false, "Show version")
 
 	flag.Parse()
-
+	if *versionFlag {
+		fmt.Printf("aci-exporter, version %s\n", version)
+		os.Exit(0)
+	}
 	log.SetFormatter(&log.JSONFormatter{})
 	if *logFormat == "text" {
 		log.SetFormatter(&log.TextFormatter{})
@@ -218,7 +222,7 @@ func main() {
 		go func() { log.Fatal(http.ListenAndServe(viper.GetString("pport"), mux)) }()
 	}
 
-	log.Info(fmt.Sprintf("%s starting on port %d", ExporterName, viper.GetInt("port")))
+	log.Info(fmt.Sprintf("%s version %s starting on port %d", ExporterName, version, viper.GetInt("port")))
 	log.Info(fmt.Sprintf("Read timeout %s, Write timeout %s", viper.GetDuration("httpserver.read_timeout")*time.Second, viper.GetDuration("httpserver.write_timeout")*time.Second))
 	s := &http.Server{
 		ReadTimeout:  viper.GetDuration("httpserver.read_timeout") * time.Second,

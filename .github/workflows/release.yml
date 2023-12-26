@@ -26,5 +26,6 @@ jobs:
         goos: ${{ matrix.goos }}
         goarch: ${{ matrix.goarch }}
         goversion: "1.20"
+        ldflags: -X main.version=${{ env.RELEASE_VERSION }}
         binary_name: aci-exporter-${{ env.RELEASE_VERSION }}.${{ matrix.goos }}.${{ matrix.goarch }}
         extra_files: COPYING README.md
