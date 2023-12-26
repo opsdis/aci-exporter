@@ -172,6 +172,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Overwrite username or password for APIC by environment variables if set
+	for fabricName := range allFabrics {
+		fabricNameAsEnv := strings.ToUpper(strings.ReplaceAll(fabricName, "-", "_"))
+		if val, exists := os.LookupEnv(fmt.Sprintf("%s_FABRICS_%s_USERNAME", ExporterNameAsEnv(), fabricNameAsEnv)); exists == true && val != "" {
+			allFabrics[fabricName].Username = val
+		}
+		if val, exists := os.LookupEnv(fmt.Sprintf("%s_FABRICS_%s_PASSWORD", ExporterNameAsEnv(), fabricNameAsEnv)); exists == true && val != "" {
+			allFabrics[fabricName].Password = val
+		}
+	}
+
 	handler := &HandlerInit{allQueries, allFabrics}
 
 	// Create a Prometheus histogram for response time of the exporter
