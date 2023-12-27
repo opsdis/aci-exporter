@@ -415,7 +415,7 @@ The aci-exporter will attach the following labels to all metrics
 All attributes in the configuration has default values, except for the fabric and the different query sections.
 A fabric profile include the information specific to an ACI fabrics, like authentication and apic(s) url.
 
-> The name of the fabric profile MUST BE in lower case.
+> The name of the fabric profile MUST BE in lower case. The may also include `_` and `-`. 
 
 > The user need to have admin read-only rights in the domain `All` to allow all kinds of queries.
 
@@ -423,6 +423,27 @@ If there is multiple apic urls configured the exporter will use the first apic i
 
 All configuration properties can be set by using environment variables. The prefix is `ACI_EXPORTER_` and property 
 must be in uppercase. So to set the property `port` with an environment variable `ACI_EXPORTER_PORT=7121`. 
+
+The fabric configuration can be overridden by using environment variables. For a fabric named `cisco_sandbox`
+the username, password, aci_name and/or apic can override by define the following environment variables as:
+```shell
+export ACI_EXPORTER_FABRICS_CISCO_SANDBOX_USERNAME=admin
+export ACI_EXPORTER_FABRICS_CISCO_SANDBOX_PASSWORD=admin
+export ACI_EXPORTER_FABRICS_CISCO_SANDBOX_ACI_NAME=my_aci
+export ACI_EXPORTER_FABRICS_CISCO_SANDBOX_APIC=https://sandboxapicdc.cisco.com
+```
+> ACI_EXPORTER_FABRICS_CISCO_SANDBOX_APIC can be a comma separated list 
+
+It is possible to define `fabrics` only by environment variables. For this to work the environment variable
+`ACI_EXPORTER_FABRIC_NAMES` must be set. It can take a comma separated string of fabric names.
+
+```shell
+export ACI_EXPORTER_FABRIC_NAMES=cisco_sandbox
+```
+
+> If configure fabrics with environment variables it is important that the fabric name only include characters. 
+> Underscore, `_` is allowed, but not dash `-`
+
 
 # Metrics output
 The metrics created by the aci-exporter is controlled by the following attributes `metrics` section of the configuration.
