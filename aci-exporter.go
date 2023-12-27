@@ -172,18 +172,18 @@ func main() {
 
 	err = viper.UnmarshalKey("fabrics", &allFabrics)
 	if err != nil {
-		log.Error("Unable to decode class_queries into struct - ", err)
+		log.Error("Unable to decode fabrics into struct - ", err)
 		os.Exit(1)
 	}
 
 	// Overwrite username or password for APIC by environment variables if set
 	for fabricName := range allFabrics {
-		fabricNameAsEnv := strings.ToUpper(strings.ReplaceAll(fabricName, "-", "_"))
-		if val, exists := os.LookupEnv(fmt.Sprintf("%s_FABRICS_%s_USERNAME", ExporterNameAsEnv(), fabricNameAsEnv)); exists == true && val != "" {
-			allFabrics[fabricName].Username = val
-		}
-		if val, exists := os.LookupEnv(fmt.Sprintf("%s_FABRICS_%s_PASSWORD", ExporterNameAsEnv(), fabricNameAsEnv)); exists == true && val != "" {
-			allFabrics[fabricName].Password = val
+		fabricEnv(fabricName, allFabrics)
+	}
+
+	if val, exists := os.LookupEnv(fmt.Sprintf("%s_FABRIC_NAMES", ExporterNameAsEnv())); exists == true && val != "" {
+		for _, fabricName := range strings.Split(val, ",") {
+			fabricEnv(fabricName, allFabrics)
 		}
 	}
 
@@ -230,6 +230,27 @@ func main() {
 		Addr:         ":" + strconv.Itoa(viper.GetInt("port")),
 	}
 	log.Fatal(s.ListenAndServe())
+}
+
+func fabricEnv(fabricName string, allFabrics map[string]*Fabric) {
+	fabricNameAsEnv := strings.ToUpper(strings.ReplaceAll(fabricName, "-", "_"))
+	if allFabrics[fabricName] == nil {
+		allFabrics[fabricName] = &Fabric{}
+	}
+	if val, exists := os.LookupEnv(fmt.Sprintf("%s_FABRICS_%s_USERNAME", ExporterNameAsEnv(), fabricNameAsEnv)); exists == true && val != "" {
+		allFabrics[fabricName].Username = val
+	}
+	if val, exists := os.LookupEnv(fmt.Sprintf("%s_FABRICS_%s_PASSWORD", ExporterNameAsEnv(), fabricNameAsEnv)); exists == true && val != "" {
+		allFabrics[fabricName].Password = val
+	}
+	if val, exists := os.LookupEnv(fmt.Sprintf("%s_FABRICS_%s_ACI_NAME", ExporterNameAsEnv(), fabricNameAsEnv)); exists == true && val != "" {
+		allFabrics[fabricName].AciName = val
+	}
+	if val, exists := os.LookupEnv(fmt.Sprintf("%s_FABRICS_%s_APIC", ExporterNameAsEnv(), fabricNameAsEnv)); exists == true && val != "" {
+		for _, url := range strings.Split(val, ",") {
+			allFabrics[fabricName].Apic = append(allFabrics[fabricName].Apic, url)
+		}
+	}
 }
 
 func cliQuery(fabric *string, class *string, query *string) string {
@@ -294,7 +315,8 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if a valid target
-	if !viper.IsSet(fmt.Sprintf("fabrics.%s", fabric)) {
+	_, ok := h.AllFabrics[fabric]
+	if !ok {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 		w.Header().Set("Content-Length", "0")
 		log.WithFields(log.Fields{
