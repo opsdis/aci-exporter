@@ -15,7 +15,7 @@ fabrics:
     apic:
       - https://sandboxapicdc.cisco.com
 
-  profile-fabric-01:
+  profile_fabric_01:
     # Apic username
     username: foo
     # Apic password
@@ -27,6 +27,18 @@ fabrics:
       - https://apic2
     # Optional - The name of the aci cluster. If not set, aci-exporter will try to determine the name
     aci_name: foobar
+
+# The above fabric configuration could be done using environment variables:
+#  export ACI_EXPORTER_FABRICS_CISCO_SANDBOX_APIC=https://sandboxapicdc.cisco.com
+#  export ACI_EXPORTER_FABRICS_CISCO_SANDBOX_PASSWORD=<check the cisco sandbox to get the password>
+#  export ACI_EXPORTER_FABRICS_CISCO_SANDBOX_USERNAME=admin
+#
+#  export ACI_EXPORTER_FABRICS_PROFILE_FABRIC_01_ACI_NAME=foobar
+#  export ACI_EXPORTER_FABRICS_PROFILE_FABRIC_01_APIC=https://apic1,https://apic2
+#  export ACI_EXPORTER_FABRICS_PROFILE_FABRIC_01_PASSWORD=bar
+#  export ACI_EXPORTER_FABRICS_PROFILE_FABRIC_01_USERNAME=foo
+#
+#  export ACI_EXPORTER_FABRIC_NAMES=cisco_sandbox,profile_fabric_01
 
 # Http client settings used to access apic
 # Below is the default values, where 0 is no timeout
