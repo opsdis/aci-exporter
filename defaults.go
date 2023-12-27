@@ -60,7 +60,7 @@ func SetDefaultValues() {
 	viper.SetDefault("openmetrics", false)
 	viper.BindEnv("openmetrics")
 
-	// HTTPCLient
+	// HTTPClient - used for connecting to APIC
 	viper.SetDefault("HTTPClient.timeout", 0)
 	viper.BindEnv("HTTPClient.timeout")
 
