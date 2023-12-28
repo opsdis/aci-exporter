@@ -570,8 +570,10 @@ docker build . -t aci-exporter
 
 To run as docker use environment variables to define configuration.
 ```shell
-export ACI_EXPORTER_CONFIG=config.yaml;docker run -p 9643:9643  aci-exporter
+docker run -p 9643:9643 --volume <path to config files>:/etc/aci-exporter -e ACI_EXPORTER_CONFIG=config.yaml aci-exporter
 ```
+Just change `ACI_EXPORTER_CONFIG` to use different configuration files. 
+> When using `config.yaml` there is no need to define `ACI_EXPORTER_CONFIG` since its the default
 
 # Acknowledgements
 
