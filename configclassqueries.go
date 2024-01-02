@@ -21,24 +21,24 @@ type GroupClassQueries map[string]*GroupClassQuery
 type BuiltinQueries map[string]func(chan []MetricDefinition)
 
 type AllQueries struct {
-	ClassQueries         ClassQueries
-	CompoundClassQueries CompoundClassQueries
-	GroupClassQueries    GroupClassQueries
+	ClassQueries         ClassQueries         `yaml:"class_queries"`
+	CompoundClassQueries CompoundClassQueries `yaml:"compound_queries"`
+	GroupClassQueries    GroupClassQueries    `yaml:"group_class_queries"`
 }
 
 type GroupClassQuery struct {
-	Name         string         `mapstructure:"name"`
-	Unit         string         `mapstructure:"unit"`
-	Type         string         `mapstructure:"type"`
-	Help         string         `mapstructure:"help"`
+	Name         string         `mapstructure:"name" yaml:"name"`
+	Unit         string         `mapstructure:"unit" yaml:"unit"`
+	Type         string         `mapstructure:"type" yaml:"type"`
+	Help         string         `mapstructure:"help" yaml:"help"`
 	Queries      []ClassQuery   `string:"queries"`
 	StaticLabels []StaticLabels `string:"staticlabels"`
 }
 
 // ClassQuery define the structure of configured queries
 type ClassQuery struct {
-	ClassName      string         `mapstructure:"class_name"`
-	QueryParameter string         `mapstructure:"query_parameter"`
+	ClassName      string         `mapstructure:"class_name" yaml:"class_name"`
+	QueryParameter string         `mapstructure:"query_parameter" yaml:"query_parameter"`
 	Metrics        []ConfigMetric `string:"metrics"`
 	Labels         []ConfigLabels `string:"labels"`
 	StaticLabels   []StaticLabels `string:"staticlabels"`
@@ -46,25 +46,25 @@ type ClassQuery struct {
 
 // ConfigMetric define the configuration of metric
 type ConfigMetric struct {
-	Name                string             `mapstructure:"name"`
-	ValueName           string             `mapstructure:"value_name"`
-	ValueCalculation    string             `mapstructure:"value_calculation"`
-	Unit                string             `mapstructure:"unit"`
-	Type                string             `mapstructure:"type"`
-	Help                string             `mapstructure:"help"`
-	ValueTransform      map[string]float64 `mapstructure:"value_transform"`
-	ValueRegexTransform string             `mapstructure:"value_regex_transformation"`
+	Name                string             `mapstructure:"name" yaml:"name"`
+	ValueName           string             `mapstructure:"value_name" yaml:"value_name"`
+	ValueCalculation    string             `mapstructure:"value_calculation" yaml:"value_calculation"`
+	Unit                string             `mapstructure:"unit" yaml:"unit"`
+	Type                string             `mapstructure:"type" yaml:"type"`
+	Help                string             `mapstructure:"help" yaml:"help"`
+	ValueTransform      map[string]float64 `mapstructure:"value_transform" yaml:"value_transform"`
+	ValueRegexTransform string             `mapstructure:"value_regex_transformation" yaml:"value_regex_transformation"`
 }
 
 // ConfigLabels define the configuration of label to parse
 type ConfigLabels struct {
-	PropertyName string `mapstructure:"property_name"`
-	Regex        string `mapstructure:"regex"`
+	PropertyName string `mapstructure:"property_name" yaml:"property_name"`
+	Regex        string `mapstructure:"regex" yaml:"regex"`
 }
 
 type StaticLabels struct {
-	Key   string `mapstructure:"key"`
-	Value string `mapstructure:"value"`
+	Key   string `mapstructure:"key" yaml:"key"`
+	Value string `mapstructure:"value" yaml:"value"`
 }
 
 // CompoundClassQuery define aggregation by common label, typical used for counting
@@ -75,8 +75,8 @@ type CompoundClassQuery struct {
 }
 
 type ClassLabelMapping struct {
-	Class          string `mapstructure:"class_name"`
-	Label          string `mapstructure:"label_value"`
-	QueryParameter string `mapstructure:"query_parameter"`
-	ValueName      string `mapstructure:"value_name"`
+	Class          string `mapstructure:"class_name" yaml:"class_name"`
+	Label          string `mapstructure:"label_value" yaml:"label_value"`
+	QueryParameter string `mapstructure:"query_parameter" yaml:"query_parameter"`
+	ValueName      string `mapstructure:"value_name" yaml:"value_name"`
 }

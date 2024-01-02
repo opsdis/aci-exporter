@@ -1,0 +1,147 @@
+class_queries:
+
+  interface_info:
+    # Interface speed and status
+    class_name: ethpmPhysIf
+    metrics:
+      # The name of the metrics without prefix and unit
+      - name: interface_oper_speed
+        value_name: ethpmPhysIf.attributes.operSpeed
+        unit: bps
+        type: gauge
+        help: The current operational speed of the interface, in bits per second.
+        value_transform:
+          'unknown': 0
+          '100M': 100000000
+          '1G': 1000000000
+          '10G': 10000000000
+          '25G': 25000000000
+          '40G': 40000000000
+          '100G': 100000000000
+          '400G': 400000000000
+      - name: interface_oper_state
+        # The field in the json that is used as the metric value, qualified path (gjson) under imdata
+        value_name: ethpmPhysIf.attributes.operSt
+        # Type
+        type: gauge
+        # Help text without prefix of metrics name
+        help: The current operational state of the interface. (0=unknown, 1=down, 2=up, 3=link-up)
+        # A string to float64 transform table of the value
+        value_transform:
+          'unknown': 0
+          'down': 1
+          'up': 2
+          'link-up': 3
+    # The labels to extract as regex
+    labels:
+      # The field in the json used to parse the labels from
+      - property_name: ethpmPhysIf.attributes.dn
+        # The regex where the string enclosed in the P<xyz> is the label name
+        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/phys-\\[(?P<interface>[^\\]]+)\\]/"
+
+  interface_rx_stats:
+    class_name: eqptIngrBytes5min
+    metrics:
+      - name: interface_rx_unicast
+        value_name: eqptIngrBytes5min.attributes.unicastCum
+        type: counter
+        unit: bytes
+        help: The number of unicast bytes received on the interface since it was integrated into the fabric.
+      - name: interface_rx_multicast
+        value_name: eqptIngrBytes5min.attributes.multicastCum
+        type: counter
+        unit: bytes
+        help: The number of multicast bytes received on the interface since it was integrated into the fabric.
+      - name: interface_rx_broadcast
+        value_name: eqptIngrBytes5min.attributes.floodCum
+        type: counter
+        unit: bytes
+        help: The number of broadcast bytes received on the interface since it was integrated into the fabric.
+    labels:
+      - property_name: eqptIngrBytes5min.attributes.dn
+        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/(?P<interface_type>[a-z]+)-\\[(?P<interface>[^\\]]+)\\]/"
+
+  interface_tx_stats:
+    class_name: eqptEgrBytes5min
+    metrics:
+      - name: interface_tx_unicast
+        value_name: eqptEgrBytes5min.attributes.unicastCum
+        type: counter
+        unit: bytes
+        help: The number of unicast bytes transmitted on the interface since it was integrated into the fabric.
+      - name: interface_tx_multicast
+        value_name: eqptEgrBytes5min.attributes.multicastCum
+        type: counter
+        unit: bytes
+        help: The number of multicast bytes transmitted on the interface since it was integrated into the fabric.
+      - name: interface_tx_broadcast
+        value_name: eqptEgrBytes5min.attributes.floodCum
+        type: counter
+        unit: bytes
+        help: The number of broadcast bytes transmitted on the interface since it was integrated into the fabric.
+    labels:
+      - property_name: eqptEgrBytes5min.attributes.dn
+        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/(?P<interface_type>[a-z]+)-\\[(?P<interface>[^\\]]+)\\]/"
+
+  interface_rx_err_stats:
+    class_name: eqptIngrDropPkts5min
+    metrics:
+      - name: interface_rx_buffer_dropped
+        value_name: eqptIngrDropPkts5min.attributes.bufferCum
+        type: counter
+        unit: pkts
+        help: The number of packets dropped by the interface due to a
+          buffer overrun while receiving since it was integrated into the
+          fabric.
+      - name: interface_rx_error_dropped
+        value_name: eqptIngrDropPkts5min.attributes.errorCum
+        type: counter
+        unit: pkts
+        help: The number of packets dropped by the interface due to a
+          packet error while receiving since it was integrated into the
+          fabric.
+      - name: interface_rx_forwarding_dropped
+        value_name: eqptIngrDropPkts5min.attributes.forwardingCum
+        type: counter
+        unit: pkts
+        help: The number of packets dropped by the interface due to a
+          forwarding issue while receiving since it was integrated into the
+          fabric.
+      - name: interface_rx_loadbal_dropped
+        value_name: eqptIngrDropPkts5min.attributes.lbCum
+        type: counter
+        unit: pkts
+        help: The number of packets dropped by the interface due to a
+          load balancing issue while receiving since it was integrated into
+          the fabric.
+    labels:
+      - property_name: eqptIngrDropPkts5min.attributes.dn
+        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/(?P<interface_type>[a-z]+)-\\[(?P<interface>[^\\]]+)\\]/"
+
+  interface_tx_err_stats:
+    class_name: eqptEgrDropPkts5min
+    metrics:
+      - name: interface_tx_queue_dropped
+        value_name: eqptEgrDropPkts5min.attributes.afdWredCum
+        type: counter
+        unit: pkts
+        help: The number of packets dropped by the interface during queue
+          management while transmitting since it was integrated into the
+          fabric.
+      - name: interface_tx_buffer_dropped
+        value_name: eqptEgrDropPkts5min.attributes.bufferCum
+        type: counter
+        unit: pkts
+        help: The number of packets dropped by the interface due to a
+          buffer overrun while transmitting since it was integrated into the
+          fabric.
+      - name: interface_tx_error_dropped
+        value_name: eqptEgrDropPkts5min.attributes.errorCum
+        type: counter
+        unit: pkts
+        help: The number of packets dropped by the interface due to a
+          packet error while transmitting since it was integrated into the
+          fabric.
+    labels:
+      - property_name: eqptEgrDropPkts5min.attributes.dn
+        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/(?P<interface_type>[a-z]+)-\\[(?P<interface>[^\\]]+)\\]/"

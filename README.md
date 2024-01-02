@@ -34,6 +34,10 @@ There also some so-called built-in queries. These are hard coded queries.
 > Example of queries can be found in the `example-config.yaml` file. 
 > Make sure you understand the ACI api before changing or creating new ones.
 
+## Configuration directory (Since version 0.7.0)
+In addition to configure all queries in the configuration file they can also be configured in different files in the 
+configuration directory. This is by default the directory `config.d` located in the same directory as the configuration 
+file. Instead of having all queries in a single file it is possible to divide by type and/or purpose.
 
 ## Class queries
 Class queries can be done against the different ACI classes. For a single query multiple metrics can be collected. 
@@ -93,6 +97,17 @@ See `example-config.yaml` for example.
 ## Built-in queries  
 The export has some standard metric "built-in". These are:
 - `faults`, labeled by severity and type of fault, like operational, configuration and environment faults.
+
+## Configuration files and directory
+The configuration should by default be in the file `config.yaml`. It is also an option to place `class_queries`, 
+`compound_queries` and/or `group_class_queries` in different files in a directory, a directory by default named
+`config.d` that is in the same directory path as the configuration file. 
+> The name of the directory can be changed using the `-config_dir` argument.
+
+If queries has the same name they will be overridden by the order they are parsed and finally query name in the 
+configuration file, default, `config.yaml` will have the highest priority. 
+In the repository directory `config.d` there is a selection of some of the different queries that has
+been created by the community. 
 
 # Parsing metrics and labels
 A metrics and label value is some part of the json returned by a query. The key for metrics value in all query types is
@@ -451,7 +466,7 @@ The metrics created by the aci-exporter is controlled by the following attribute
 - `name` the name of the metric
 - `type` the type of the metric, if not set it will default to gauge. If the type is a counter the metric name will be
 postfix with `_total`
-- `unit` a base unit like bytes, seconds etc. If defined the metrics name will be postfix with the unit
+- `unit` a base unit like bytes, seconds etc. If defined the metrics name will be postfixed with the unit
 - `help` the description text of the metrics, if not set it will default to `Missing description` 
 
 With the following settings:
@@ -573,7 +588,7 @@ To run as docker use environment variables to define configuration.
 docker run -p 9643:9643 --volume <path to config files>:/etc/aci-exporter -e ACI_EXPORTER_CONFIG=config.yaml aci-exporter
 ```
 Just change `ACI_EXPORTER_CONFIG` to use different configuration files. 
-> When using `config.yaml` there is no need to define `ACI_EXPORTER_CONFIG` since its the default
+> When using `config.yaml` there is no need to define `ACI_EXPORTER_CONFIG` since it's the default
 
 # Acknowledgements
 

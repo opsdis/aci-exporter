@@ -1,0 +1,115 @@
+class_queries:
+  vlans:
+    class_name: fvnsEncapBlk
+    metrics:
+      - name: vlans_from
+        value_name: fvnsEncapBlk.attributes.from
+        type: gauge
+        help: The from vlan
+        value_regex_transformation: "vlan-(.*)"
+      - name: vlans_to
+        value_name: fvnsEncapBlk.attributes.to
+        type: gauge
+        help: The to vlan
+        value_regex_transformation: "vlan-(.*)"
+    labels:
+      - property_name: fvnsEncapBlk.attributes.dn
+        regex: "^uni/infra/vlanns-\\[(?P<vlanns>.+)\\]-static/from-\\[(?P<from>.+)\\]-to-\\[(?P<to>.+)\\]"
+
+  static_binding_info:
+    class_name: fvAEPg
+    query_parameter: "?rsp-subtree-include=required&rsp-subtree-class=fvRsPathAtt&rsp-subtree=children"
+    metrics:
+      - name: static_binding
+        value_name: fvAEPg.children.[fvRsPathAtt].attributes.encap
+        type: gauge
+        value_regex_transformation: "vlan-(.*)"
+        help: "Static binding info"
+    labels:
+      - property_name: fvAEPg.attributes.dn
+        regex: "^uni/tn-(?P<tenant>.*)/ap-(?P<app>.*)/epg-(?P<epg>.*)"
+      - property_name: fvAEPg.attributes.[.*].attributes.tDn
+        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/(protpaths|paths)-(?P<nodeid>[1-9][0-9].*)/pathep-\\[(?P<port>.+)\\]"
+      - property_name: fvAEPg.attributes.[.*].attributes.encap
+        regex: "^(?P<encap>.*)"
+
+  dynamic_binding_info:
+    class_name: vlanCktEp
+    query_parameter: '?rsp-subtree-include=required&rsp-subtree-class=l2RsPathDomAtt&rsp-subtree=children'
+    metrics:
+      - name: dynamic_binding
+        value_name: vlanCktEp.children.[l2RsPathDomAtt].attributes.operSt
+        type: gauge
+        value_transform:
+          'unknown': 0
+          'down': 1
+          'up': 2
+          'link-up': 3
+    labels:
+      - property_name: vlanCktEp.attributes.epgDn
+        regex: "^uni/tn-(?P<tenant>.*)/ap-(?P<app>.*)/epg-(?P<epg>.*)"
+      - property_name: vlanCktEp.attributes.encap
+        regex: "^vlan-(?P<vlan>.*)"
+      - property_name: vlanCktEp.attributes.pcTag
+        regex: "^(?P<pcTag>.*)"
+      - property_name: vlanCktEp.children.[l2RsPathDomAtt].attributes.tDn
+        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]+)/sys/conng/path-\\[(?P<interface>[^\\]]+)\\]"
+
+  epg_port_vlan_binding:
+    class_name: vlanCktEp
+    query_parameter: '?order-by=vlanCktEp.dn&rsp-subtree-include=required&rsp-subtree-class=l2RsPathDomAtt&rsp-subtree=children'
+    metrics:
+      - name: epg_port_vlan_binding
+        value_name: vlanCktEp.children.[l2RsPathDomAtt].attributes.operSt
+        type: gauge
+        value_transform:
+          'unknown': 0
+          'down': 1
+          'up': 2
+          'link-up': 3
+    labels:
+      - property_name: vlanCktEp.attributes.epgDn
+        regex: "^uni/tn-(?P<tenant>.*)/ap-(?P<app>.*)/epg-(?P<epg>.*)"
+      - property_name: vlanCktEp.attributes.encap
+        regex: "^vlan-(?P<vlan>.*)"
+      - property_name: vlanCktEp.attributes.pcTag
+        regex: "^(?P<pcTag>.*)"
+      - property_name: vlanCktEp.children.[l2RsPathDomAtt].attributes.tDn
+        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]+)/sys/conng/path-\\[(?P<interface>[^\\]]+)\\]"
+
+  epg_port_vxlan_binding:
+    class_name: vxlanCktEp
+    query_parameter: '?order-by=vxlanCktEp.dn&rsp-subtree-include=required&rsp-subtree-class=l2RsPathDomAtt&rsp-subtree=children'
+    metrics:
+      - name: epg_port_vxlan_binding
+        value_name: vxlanCktEp.children.[l2RsPathDomAtt].attributes.operSt
+        type: gauge
+        value_transform:
+          'unknown': 0
+          'down': 1
+          'up': 2
+          'link-up': 3
+    labels:
+      - property_name: vxlanCktEp.attributes.epgDn
+        regex: "^uni/tn-(?P<tenant>.*)/ap-(?P<app>.*)/epg-(?P<epg>.*)"
+      - property_name: vxlanCktEp.attributes.encap
+        regex: "^vxlan-(?P<vxlan>.*)"
+      - property_name: vxlanCktEp.attributes.pcTag
+        regex: "^(?P<pcTag>.*)"
+      - property_name: vxlanCktEp.children.[l2RsPathDomAtt].attributes.tDn
+        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]+)/sys/conng/path-\\[(?P<interface>[^\\]]+)\\]"
+
+  epg_to_port:
+    # TODO
+    class_name: vlanCktEp
+    query_parameter: '?rsp-subtree-include=required&rsp-subtree-class=l2RsPathDomAtt&rsp-subtree=children'
+    #query_parameter: ''
+    metrics:
+      - name: dynamic_binding
+        value_name: vlanCktEp.attributes.pcTag
+        type: gauge
+    labels:
+      - property_name: vlanCktEp.attributes.epgDn
+        regex: "^uni/tn-(?P<tenant>.*)/ap-(?P<app>.*)/epg-(?P<epg>.*)"
+      - property_name: vlanCktEp.children.[l2RsPathDomAtt].attributes.tDn
+        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]+)/sys/conng/path-\\[(?P<interface>[^\\]]+)\\]"
