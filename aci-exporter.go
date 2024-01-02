@@ -19,9 +19,12 @@ import (
 	"fmt"
 	"net/http/pprof"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"gopkg.in/yaml.v2"
 
 	"net/http"
 
@@ -71,7 +74,7 @@ func main() {
 	logLevel := flag.String("loglevel", viper.GetString("loglevel"), "Set log log level, default info")
 	config := flag.String("config", viper.GetString("config"), "Set configuration file, default config.yaml")
 	usage := flag.Bool("u", false, "Show usage")
-	writeConfig := flag.Bool("default", false, "Write default config")
+	writeConfig := flag.Bool("default", false, "Write default config named aci_exporter_default_config.yaml. If config.d directory exist all queries will be merged into single file.")
 	profiling := flag.Bool("pprof", false, "Enable profiling")
 
 	cli := flag.Bool("cli", false, "Run single query")
@@ -79,6 +82,9 @@ func main() {
 	query := flag.String("query", viper.GetString("query"), "The query for the class - only cli")
 	fabric := flag.String("fabric", viper.GetString("fabric"), "The fabric name - only cli")
 	versionFlag := flag.Bool("v", false, "Show version")
+
+	// configuration directory is always relative to the directory where the config file is located
+	configDirName := flag.String("config_dir", viper.GetString("config_dir"), "The configuration directory, default config.d")
 
 	flag.Parse()
 	if *versionFlag {
@@ -127,10 +133,21 @@ func main() {
 	}
 
 	if *writeConfig {
-		err := viper.WriteConfigAs("./aci_exporter_default_config.yaml")
+		var queries = AllQueries{}
+		_, err := os.Stat(*configDirName)
+		if err == nil {
+			readConfigDirectory(configDirName, ".", &queries)
+			viper.Set("class_queries", queries.ClassQueries)
+			viper.Set("group_class_queries", queries.GroupClassQueries)
+			viper.Set("compound_queries", queries.CompoundClassQueries)
+		} else {
+			log.Info(fmt.Sprintf("No %s directory found - will not merge in queries", *configDirName))
+		}
+		err = viper.WriteConfigAs("./aci_exporter_default_config.yaml")
 		if err != nil {
 			log.Error("Can not write default config file - ", err)
 		}
+
 		os.Exit(0)
 	}
 
@@ -141,31 +158,40 @@ func main() {
 		os.Exit(1)
 	}
 
-	var classQueries = ClassQueries{}
-	err = viper.UnmarshalKey("class_queries", &classQueries)
+	// Read all config from config file and directory
+	var queries = AllQueries{}
+
+	readConfigDirectory(configDirName, filepath.Dir(viper.ConfigFileUsed()), &queries)
+
+	// check for configurations in the main configuration file
+
+	err = viper.UnmarshalKey("class_queries", &queries.ClassQueries)
 	if err != nil {
 		log.Error("Unable to decode class_queries into struct - ", err)
 		os.Exit(1)
 	}
 
-	var compoundClassQueries = CompoundClassQueries{}
-	err = viper.UnmarshalKey("compound_queries", &compoundClassQueries)
+	err = viper.UnmarshalKey("compound_queries", &queries.CompoundClassQueries)
 	if err != nil {
 		log.Error("Unable to decode compound_queries into struct - ", err)
 		os.Exit(1)
 	}
 
-	var groupClassQueries = GroupClassQueries{}
-	err = viper.UnmarshalKey("qroup_class_queries", &groupClassQueries)
+	err = viper.UnmarshalKey("qroup_class_queries", &queries.GroupClassQueries)
 	if err != nil {
 		log.Error("Unable to decode compound_queries into struct - ", err)
 		os.Exit(1)
 	}
 
+	err = viper.UnmarshalKey("group_class_queries", &queries.GroupClassQueries)
+	if err != nil {
+		log.Error("Unable to decode compound_queries into struct - ", err)
+		os.Exit(1)
+	}
 	allQueries := AllQueries{
-		ClassQueries:         classQueries,
-		CompoundClassQueries: compoundClassQueries,
-		GroupClassQueries:    groupClassQueries,
+		ClassQueries:         queries.ClassQueries,
+		CompoundClassQueries: queries.CompoundClassQueries,
+		GroupClassQueries:    queries.GroupClassQueries,
 	}
 
 	allFabrics := make(map[string]*Fabric)
@@ -185,6 +211,12 @@ func main() {
 		for _, fabricName := range strings.Split(val, ",") {
 			fabricEnv(fabricName, allFabrics)
 		}
+	}
+
+	for fabricName := range allFabrics {
+		log.WithFields(log.Fields{
+			"fabric": fabricName,
+		}).Info("Configured fabric")
 	}
 
 	handler := &HandlerInit{allQueries, allFabrics}
@@ -222,14 +254,46 @@ func main() {
 		go func() { log.Fatal(http.ListenAndServe(viper.GetString("pport"), mux)) }()
 	}
 
-	log.Info(fmt.Sprintf("%s version %s starting on port %d", ExporterName, version, viper.GetInt("port")))
-	log.Info(fmt.Sprintf("Read timeout %s, Write timeout %s", viper.GetDuration("httpserver.read_timeout")*time.Second, viper.GetDuration("httpserver.write_timeout")*time.Second))
 	s := &http.Server{
 		ReadTimeout:  viper.GetDuration("httpserver.read_timeout") * time.Second,
 		WriteTimeout: viper.GetDuration("httpserver.write_timeout") * time.Second,
 		Addr:         ":" + strconv.Itoa(viper.GetInt("port")),
 	}
+	log.WithFields(log.Fields{
+		"version":       version,
+		"port":          viper.GetInt("port"),
+		"config_file":   viper.ConfigFileUsed(),
+		"read_timeout":  viper.GetDuration("httpserver.read_timeout") * time.Second,
+		"write_timeout": viper.GetDuration("httpserver.write_timeout") * time.Second,
+	}).Info("aci-exporter starting")
 	log.Fatal(s.ListenAndServe())
+}
+
+func readConfigDirectory(configDirName *string, dirPath string, queries *AllQueries) {
+	configDir := filepath.Join(dirPath, *configDirName)
+	files, err := os.ReadDir(configDir)
+	if err != nil {
+		log.Error("Unable to access files in the configuration directory - ", err)
+		os.Exit(1)
+	}
+
+	for _, file := range files {
+
+		yamlFile, err := os.ReadFile(filepath.Join(configDir, file.Name()))
+		if err != nil {
+			log.Error(fmt.Sprintf("Reading the config file %s failed - ", file.Name()), err)
+			os.Exit(1)
+		}
+		err = yaml.Unmarshal(yamlFile, &queries)
+		if err != nil {
+			log.Error(fmt.Sprintf("Unmarshal the config file %s failed - ", file.Name()), err)
+			os.Exit(1)
+		}
+
+		log.WithFields(log.Fields{
+			"file": file.Name(),
+		}).Info("Directory configuration files")
+	}
 }
 
 func fabricEnv(fabricName string, allFabrics map[string]*Fabric) {

@@ -1,0 +1,49 @@
+class_queries:
+  bgp_peers:
+    class_name: bgpPeer
+    query_parameter: '?order-by=bgpPeer.dn&rsp-subtree=children&rsp-subtree-class=bgpPeerEntry'
+    metrics:
+      - name: bgp_peers
+        # As metric I am saving the last time the peer conenction changed state
+        value_name: bgpPeer.children.[.*].attributes.lastFlapTs
+        value_regex_transformation: "(?P<date>.*)"
+        value_calculation: "date"
+    labels:
+      - property_name: bgpPeer.attributes.asn
+        regex: "(?P<asn>.*)"
+      - property_name: bgpPeer.attributes.srcIf
+        regex: "(?P<interface>.*)"
+      - property_name: bgpPeer.attributes.dn
+        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/bgp/inst/dom-(?P<vrf>.*)/peer-"
+      - property_name: bgpPeer.children.[.*].attributes.flags
+        regex: "(?P<flags>.*)"
+      - property_name: bgpPeer.children.[.*].attributes.type
+        regex: "(?P<type>.*)"
+      - property_name: bgpPeer.children.[.*].attributes.operSt
+        regex: "(?P<oper_state>.*)"
+      - property_name: bgpPeer.children.[.*].attributes.connAttempts
+        regex: "(?P<conn_attempts>.*)"
+      - property_name: bgpPeer.children.[.*].attributes.connDrop
+        regex: "(?P<conn_drop>.*)"
+      - property_name: bgpPeer.children.[.*].attributes.connEst
+        regex: "(?P<conn_est>.*)"
+      - property_name: bgpPeer.children.[.*].attributes.addr
+        regex: "(?P<peer_ip>.*)"
+      - property_name: bgpPeer.children.[.*].attributes.rtrId
+        regex: "(?P<id>.*)"
+  # BGP Peers
+  bgp_peers_af:
+    class_name: bgpPeerAfEntry
+    query_parameter: '?order-by=bgpPeerAfEntry.dn'
+    metrics:
+      - name: bgp_peer_prefix_sent
+        value_name: bgpPeerAfEntry.attributes.pfxSent
+        type: "gauge"
+      - name: bgp_peer_prefix_received
+        value_name: bgpPeerAfEntry.attributes.acceptedPaths
+        type: "gauge"
+    labels:
+      - property_name: bgpPeerAfEntry.attributes.dn
+        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/bgp/inst/dom-(?P<vrf>.*)/peer-.*\\/ent-\\[(?P<peer_ip>.*)\\]"
+      - property_name: bgpPeerAfEntry.attributes.type
+        regex: "(?P<address_family>.*)"

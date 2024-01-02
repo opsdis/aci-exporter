@@ -51,6 +51,8 @@ func SetDefaultValues() {
 	viper.BindEnv("logformat")
 	viper.SetDefault("config", "config")
 	viper.BindEnv("config")
+	viper.SetDefault("config_dir", "config.d")
+	viper.BindEnv("config_dir")
 	viper.SetDefault("prefix", "aci_")
 	viper.BindEnv("prefix")
 	viper.SetDefault("pport", "localhost:6060")
