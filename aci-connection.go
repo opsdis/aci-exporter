@@ -167,7 +167,7 @@ func (c *AciConnection) tokenProcessing() (error, bool) {
 		c.tokenMutex.Lock()
 		defer c.tokenMutex.Unlock()
 		if c.token.expire < time.Now().Unix() {
-			response, status, err := c.get("refresh", fmt.Sprintf("%s%s", c.fabricConfig.Apic[*c.activeController], c.URLMap["refresh"]))
+			response, status, err := c.getSinglePage("refresh", fmt.Sprintf("%s%s", c.fabricConfig.Apic[*c.activeController], c.URLMap["refresh"]))
 			if err != nil || status != 200 {
 				//errRe = fmt.Errorf("failed to refresh token %s", c.fabricConfig.Apic[*c.activeController])
 				log.WithFields(log.Fields{
@@ -227,7 +227,7 @@ func (c *AciConnection) logout() bool {
 }
 
 func (c *AciConnection) getByQuery(table string) (string, error) {
-	data, _, err := c.get(table, fmt.Sprintf("%s%s", c.fabricConfig.Apic[*c.activeController], c.URLMap[table]))
+	data, _, err := c.getSinglePage(table, fmt.Sprintf("%s%s", c.fabricConfig.Apic[*c.activeController], c.URLMap[table]))
 	if err != nil {
 		log.WithFields(log.Fields{
 			"requestid": c.ctx.Value("requestid"),
@@ -240,7 +240,7 @@ func (c *AciConnection) getByQuery(table string) (string, error) {
 
 func (c *AciConnection) getByClassQuery(class string, query string) (string, error) {
 	if c.parallelPaging && !strings.Contains(query, "rsp-subtree-include=count") {
-		data, _, err := c.getParallel(class, fmt.Sprintf("%s/api/class/%s.json%s", c.fabricConfig.Apic[*c.activeController], class, query))
+		data, _, err := c.getParallelPage(class, fmt.Sprintf("%s/api/class/%s.json%s", c.fabricConfig.Apic[*c.activeController], class, query))
 		if err != nil {
 			log.WithFields(log.Fields{
 				"requestid": c.ctx.Value("requestid"),
@@ -250,7 +250,7 @@ func (c *AciConnection) getByClassQuery(class string, query string) (string, err
 		}
 		return string(data), nil
 	} else {
-		data, _, err := c.get(class, fmt.Sprintf("%s/api/class/%s.json%s", c.fabricConfig.Apic[*c.activeController], class, query))
+		data, _, err := c.getSinglePage(class, fmt.Sprintf("%s/api/class/%s.json%s", c.fabricConfig.Apic[*c.activeController], class, query))
 		if err != nil {
 			log.WithFields(log.Fields{
 				"requestid": c.ctx.Value("requestid"),
@@ -260,35 +260,11 @@ func (c *AciConnection) getByClassQuery(class string, query string) (string, err
 		}
 		return string(data), nil
 	}
-	/*
-		if err != nil {
-			log.WithFields(log.Fields{
-				"requestid": c.ctx.Value("requestid"),
-				"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
-			}).Error(fmt.Sprintf("Class request %s failed - %s.", class, err))
-			return "", err
-		}
-		return string(data), nil
-	*/
 }
 
-/*
-	func (c *AciConnection) getByClassQueryN(class string, query string) (string, error) {
-		data, _, err := c.get(class, fmt.Sprintf("%s/api/class/%s.json%s", c.fabricConfig.Apic[*c.activeController], class, query))
-		if err != nil {
-			log.WithFields(log.Fields{
-				"requestid": c.ctx.Value("requestid"),
-				"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
-			}).Error(fmt.Sprintf("Class request %s failed - %s.", class, err))
-			return "", err
-		}
-		return string(data), nil
-
-}
-*/
-func (c *AciConnection) get(class string, url string) ([]byte, int, error) {
+func (c *AciConnection) getSinglePage(class string, url string) ([]byte, int, error) {
 	start := time.Now()
-	body, status, err := c.doGet(url)
+	body, status, err := c.doGetSingle(url)
 	responseTime := time.Since(start).Seconds()
 	responseTimeMetric.With(prometheus.Labels{
 		"fabric": fmt.Sprintf("%v", c.ctx.Value("fabric")),
@@ -309,9 +285,9 @@ func (c *AciConnection) get(class string, url string) ([]byte, int, error) {
 	return body, status, err
 }
 
-func (c *AciConnection) getParallel(class string, url string) ([]byte, int, error) {
+func (c *AciConnection) getParallelPage(class string, url string) ([]byte, int, error) {
 	start := time.Now()
-	body, status, count, err := c.doPGet(class, url)
+	body, status, count, err := c.doGetParallel(class, url)
 	responseTime := time.Since(start).Seconds()
 	responseTimeMetric.With(prometheus.Labels{
 		"fabric": fmt.Sprintf("%v", c.ctx.Value("fabric")),
@@ -333,7 +309,7 @@ func (c *AciConnection) getParallel(class string, url string) ([]byte, int, erro
 	return body, status, err
 }
 
-func (c *AciConnection) doGet(url string) ([]byte, int, error) {
+func (c *AciConnection) doGetSingle(url string) ([]byte, int, error) {
 
 	req, err := http.NewRequest("GET", url, bytes.NewBuffer([]byte{}))
 	if err != nil {
@@ -471,116 +447,6 @@ func divMod(numerator uint64, denominator uint64) (quotient uint64, remainder ui
 	return quotient, remainder
 }
 
-func (c *AciConnection) doPGet(class string, url string) ([]byte, int, uint64, error) {
-	if class == "eqptLC" {
-		print("STOP")
-	}
-	//var resp http.Response
-
-	aciResponse := ACIResponse{
-		TotalCount: 0,
-		ImData:     make([]map[string]interface{}, 0, c.pageSize),
-	}
-
-	var count uint64 = 0
-
-	pagedUrl := url
-
-	for {
-		// Create paging url
-		if strings.Contains(url, "?") {
-			pagedUrl = fmt.Sprintf("%s&order-by=%s.dn&page=%d&page-size=%d", url, class, count, c.pageSize)
-		} else {
-			pagedUrl = fmt.Sprintf("%s?order-by=%s.dn&page=%d&page-size=%d", url, class, count, c.pageSize)
-		}
-
-		req, err := http.NewRequest("GET", pagedUrl, bytes.NewBuffer([]byte{}))
-		log.Debug(fmt.Sprintf("url %s\n", pagedUrl))
-
-		if err != nil {
-			log.WithFields(log.Fields{
-				"requestid": c.ctx.Value("requestid"),
-				"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
-			}).Error(err)
-			return nil, 0, 0, err
-		}
-		// Set headers
-		for k, v := range c.Headers {
-			req.Header.Set(k, v)
-		}
-		cookie := http.Cookie{
-			Name:       "APIC-cookie",
-			Value:      c.token.token,
-			Path:       "",
-			Domain:     "",
-			Expires:    time.Time{},
-			RawExpires: "",
-			MaxAge:     0,
-			Secure:     false,
-			HttpOnly:   false,
-			SameSite:   0,
-			Raw:        "",
-			Unparsed:   nil,
-		}
-
-		req.AddCookie(&cookie)
-
-		// Will append the APIC-cookie
-		resp, err := c.Client.Do(req)
-		if req != nil {
-			req.Body.Close()
-		}
-
-		if err != nil {
-			log.WithFields(log.Fields{
-				"requestid": c.ctx.Value("requestid"),
-				"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
-			}).Error(err)
-			return nil, 0, 0, err
-		}
-
-		if resp.StatusCode == http.StatusOK {
-			bodyBytes, err := io.ReadAll(resp.Body)
-			if err != nil {
-				log.WithFields(log.Fields{
-					"requestid": c.ctx.Value("requestid"),
-					"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
-				}).Error(err)
-				return nil, resp.StatusCode, 0, err
-			}
-			// return the total and not the amount to be collected, but only first count
-			if count == 0 {
-				aciResponse.TotalCount = gjson.Get(string(bodyBytes), "totalCount").Uint()
-			}
-			tmpAciResponse := ACIResponse{
-				TotalCount: 0,
-				ImData:     make([]map[string]interface{}, 0, c.pageSize),
-			}
-			_ = json.Unmarshal(bodyBytes, &tmpAciResponse)
-			//fmt.Printf("size returned %d\n", len(tmpAciResponse.ImData))
-			for _, x := range tmpAciResponse.ImData {
-				if x != nil {
-					aciResponse.ImData = append(aciResponse.ImData, x)
-				}
-			}
-			count = count + 1
-			if count*c.pageSize >= aciResponse.TotalCount {
-				break
-			}
-
-			resp.Body.Close()
-		} else {
-			// if not 200
-			resp.Body.Close()
-			return nil, resp.StatusCode, count, fmt.Errorf("ACI api returned %d", resp.StatusCode)
-		}
-
-	}
-	data, _ := json.Marshal(aciResponse)
-
-	return data, http.StatusOK, count, nil
-}
-
 func (c *AciConnection) doGetParallel(class string, url string) ([]byte, int, uint64, error) {
 
 	var resp http.Response
@@ -613,6 +479,23 @@ func (c *AciConnection) doGetParallel(class string, url string) ([]byte, int, ui
 	for k, v := range c.Headers {
 		req1.Header.Set(k, v)
 	}
+
+	cookie := http.Cookie{
+		Name:       "APIC-cookie",
+		Value:      c.token.token,
+		Path:       "",
+		Domain:     "",
+		Expires:    time.Time{},
+		RawExpires: "",
+		MaxAge:     0,
+		Secure:     false,
+		HttpOnly:   false,
+		SameSite:   0,
+		Raw:        "",
+		Unparsed:   nil,
+	}
+
+	req1.AddCookie(&cookie)
 
 	// Will append the APIC-cookie
 	resp1, err := c.Client.Do(req1)
@@ -695,6 +578,22 @@ func (c *AciConnection) collectPage(class string, url string, pagedUrl string, c
 		req.Header.Set(k, v)
 	}
 
+	cookie := http.Cookie{
+		Name:       "APIC-cookie",
+		Value:      c.token.token,
+		Path:       "",
+		Domain:     "",
+		Expires:    time.Time{},
+		RawExpires: "",
+		MaxAge:     0,
+		Secure:     false,
+		HttpOnly:   false,
+		SameSite:   0,
+		Raw:        "",
+		Unparsed:   nil,
+	}
+
+	req.AddCookie(&cookie)
 	// Will append the APIC-cookie
 	start := time.Now()
 	resp, err := c.Client.Do(req)
