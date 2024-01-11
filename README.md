@@ -459,6 +459,22 @@ export ACI_EXPORTER_FABRIC_NAMES=cisco_sandbox
 > If configure fabrics with environment variables it is important that the fabric name only include characters. 
 > Underscore, `_` is allowed, but not dash `-`
 
+## Large fabric configuration
+For large fabrics the response latency can increase and even the max response items may be enough. For these large
+fabrics it possible to use paging request where aci-exporter will make each page request in parallel. To use parallel
+paging the following configuration can be done in the configuration file:
+```yaml
+httpclient:
+  # this is the max and also the default value
+  pagesize: 1000
+  # enable parallel paging, default is false
+  parallel_paging: true
+```
+It is also possible to set the configuration through environment variables:
+```shell
+ACI_EXPORTER_HTTPCLIENT_PAGESIZE=1000
+ACI_EXPORTER_HTTPCLIENT_PARALLEL_PAGING=true
+```
 
 # Metrics output
 The metrics created by the aci-exporter is controlled by the following attributes `metrics` section of the configuration.

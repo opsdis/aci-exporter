@@ -46,6 +46,8 @@ fabrics:
 #  insecurehttps: true
 #  keepalive: 15
 #  timeout: 0
+#  pagesize: 1000
+#  parallel_paging: false
 
 # Http server settings - this is for the web server aci-exporter expose
 # Below is the default values, where 0 is no timeout

@@ -69,6 +69,12 @@ func SetDefaultValues() {
 	viper.SetDefault("HTTPClient.keepalive", 15)
 	viper.BindEnv("HTTPClient.keepalive")
 
+	viper.SetDefault("HTTPClient.pagesize", 1000)
+	viper.BindEnv("HTTPClient.pagesize")
+
+	viper.SetDefault("HTTPClient.parallel_paging", true)
+	viper.BindEnv("HTTPClient.parallel_paging")
+
 	// This is currently not used
 	viper.SetDefault("HTTPClient.tlshandshaketimeout", 10)
 	viper.BindEnv("HTTPClient.tlshandshaketimeout")
