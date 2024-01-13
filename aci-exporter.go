@@ -271,6 +271,12 @@ func main() {
 
 func readConfigDirectory(configDirName *string, dirPath string, queries *AllQueries) {
 	configDir := filepath.Join(dirPath, *configDirName)
+	_, err := os.Stat(configDir)
+	if err != nil {
+		log.Info("Configuration directory do not exist - ", err)
+		return
+	}
+
 	files, err := os.ReadDir(configDir)
 	if err != nil {
 		log.Error("Unable to access files in the configuration directory - ", err)
