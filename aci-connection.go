@@ -54,9 +54,10 @@ var refreshFailedMetric = promauto.NewCounterVec(prometheus.CounterOpts{
 )
 
 type AciToken struct {
-	token  string
-	ttl    int64
-	expire int64
+	token    string
+	ttl      int64
+	expire   int64
+	lifetime int64
 }
 
 // AciConnection is the connection object
@@ -160,7 +161,14 @@ func (c *AciConnection) tokenProcessing() (error, bool) {
 	if c.token != nil {
 		c.tokenMutex.Lock()
 		defer c.tokenMutex.Unlock()
-		if c.token.expire < time.Now().Unix() {
+		if c.token.lifetime < time.Now().Unix() {
+			log.WithFields(log.Fields{
+				"requestid": c.ctx.Value("requestid"),
+				"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
+				"token":     fmt.Sprintf("lifetime"),
+			}).Info("token reached lifetime seconds")
+			return nil, false
+		} else if c.token.expire < time.Now().Unix() {
 			response, status, err := c.get("refresh", fmt.Sprintf("%s%s", c.fabricConfig.Apic[*c.activeController], c.URLMap["refresh"]))
 			if err != nil || status != 200 {
 				//errRe = fmt.Errorf("failed to refresh token %s", c.fabricConfig.Apic[*c.activeController])
@@ -173,7 +181,7 @@ func (c *AciConnection) tokenProcessing() (error, bool) {
 					"fabric": fmt.Sprintf("%v", c.ctx.Value("fabric"))}).Inc()
 				return err, false
 			} else {
-				c.newToken(response)
+				c.refreshToken(response)
 				log.WithFields(log.Fields{
 					"requestid": c.ctx.Value("requestid"),
 					"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
@@ -199,11 +207,25 @@ func (c *AciConnection) tokenProcessing() (error, bool) {
 func (c *AciConnection) newToken(response []byte) {
 	token := gjson.Get(string(response), "imdata.0.aaaLogin.attributes.token").String()
 	ttl := gjson.Get(string(response), "imdata.0.aaaLogin.attributes.refreshTimeoutSeconds").Int()
+	lifetimeSeconds := gjson.Get(string(response), "imdata.0.aaaLogin.attributes.maximumLifetimeSeconds").Int()
 
 	c.token = &AciToken{
-		token:  token,
-		ttl:    ttl,
-		expire: time.Now().Unix() + ttl - 60,
+		token:    token,
+		ttl:      ttl,
+		expire:   time.Now().Unix() + ttl - 60,
+		lifetime: time.Now().Unix() + lifetimeSeconds - 60,
+	}
+}
+
+func (c *AciConnection) refreshToken(response []byte) {
+	token := gjson.Get(string(response), "imdata.0.aaaLogin.attributes.token").String()
+	ttl := gjson.Get(string(response), "imdata.0.aaaLogin.attributes.refreshTimeoutSeconds").Int()
+
+	c.token = &AciToken{
+		token:    token,
+		ttl:      ttl,
+		expire:   time.Now().Unix() + ttl - 60,
+		lifetime: c.token.lifetime,
 	}
 }
 
