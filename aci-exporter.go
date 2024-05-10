@@ -15,6 +15,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"net/http/pprof"
@@ -233,6 +234,7 @@ func main() {
 	// Setup handler for aci destinations
 	http.Handle("/probe", logCall(promMonitor(http.HandlerFunc(handler.getMonitorMetrics), responseTime, "/probe")))
 	http.Handle("/alive", logCall(promMonitor(http.HandlerFunc(alive), responseTime, "/alive")))
+	http.Handle("/sd", logCall(promMonitor(http.HandlerFunc(handler.discovery), responseTime, "/sd")))
 
 	// Setup handler for exporter metrics
 	http.Handle("/metrics", promhttp.HandlerFor(
@@ -345,7 +347,7 @@ func cliQuery(fabric *string, class *string, query *string) string {
 	defer con.logout()
 	var data string
 
-	if string((*query)[0]) != "?" {
+	if len(*query) > 0 && string((*query)[0]) != "?" {
 		data, err = con.getByClassQuery(*class, fmt.Sprintf("?%s", *query))
 	} else {
 		data, err = con.getByClassQuery(*class, *query)
@@ -360,6 +362,50 @@ func cliQuery(fabric *string, class *string, query *string) string {
 type HandlerInit struct {
 	AllQueries AllQueries
 	AllFabrics map[string]*Fabric
+}
+
+func (h HandlerInit) discovery(w http.ResponseWriter, r *http.Request) {
+
+	fabric := r.URL.Query().Get("fabric")
+	if fabric != strings.ToLower(fabric) {
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+		w.Header().Set("Content-Length", "0")
+		log.WithFields(log.Fields{
+			"fabric": fabric,
+		}).Warning("fabric target must be in lower case")
+		lrw := loggingResponseWriter{ResponseWriter: w}
+		lrw.WriteHeader(400)
+		return
+	}
+
+	_, ok := h.AllFabrics[fabric]
+	if !ok {
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+		w.Header().Set("Content-Length", "0")
+		log.WithFields(log.Fields{
+			"fabric": fabric,
+		}).Warning("fabric target do not exists")
+		lrw := loggingResponseWriter{ResponseWriter: w}
+		lrw.WriteHeader(404)
+		return
+	}
+
+	discovery := Discovery{
+		Fabric:     fabric,
+		LabelsKeys: viper.GetStringSlice("service_discovery.labels"),
+	}
+	dis := discovery.doDiscovery()
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	lrw := loggingResponseWriter{ResponseWriter: w}
+	lrw.WriteHeader(200)
+	//json.NewEncoder(w).Encode(dis)
+
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "    ")
+	if err := enc.Encode(dis); err != nil {
+		lrw.WriteHeader(500)
+	}
 }
 
 func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
