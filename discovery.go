@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"github.com/tidwall/gjson"
 	"reflect"
 	"strings"
@@ -14,50 +15,60 @@ type ServiceDiscovery struct {
 }
 
 type Discovery struct {
-	Fabric     string
-	LabelsKeys []string
+	Fabric      string
+	LabelsKeys  []string
+	TargetField string
 }
 
-func (d Discovery) doDiscovery() []ServiceDiscovery {
+func (d Discovery) DoDiscovery() ([]ServiceDiscovery, error) {
 	class := "topSystem"
 	query := ""
 	data := cliQuery(&d.Fabric, &class, &query)
 
-	sds := []SystemDiscovery{}
+	var topSystems []TopSystem
 	result := gjson.Get(data, "imdata")
 	result.ForEach(func(key, value gjson.Result) bool {
-		system := gjson.Get(value.Raw, "topSystem.attributes").Raw
-		sd := &SystemDiscovery{}
-		json.Unmarshal([]byte(system), sd)
-		sds = append(sds, *sd)
+		topSystemJson := gjson.Get(value.Raw, "topSystem.attributes").Raw
+		topSystem := &TopSystem{}
+		json.Unmarshal([]byte(topSystemJson), topSystem)
+		topSystems = append(topSystems, *topSystem)
 		return true
 	})
 
-	return d.parseToDiscoveryFormat(sds)
+	return d.parseToDiscoveryFormat(topSystems)
 }
 
-func (d Discovery) parseToDiscoveryFormat(sds []SystemDiscovery) []ServiceDiscovery {
-	var dis []ServiceDiscovery
-	for _, sd := range sds {
-		ksd := &ServiceDiscovery{}
-		ksd.Labels = make(map[string]string)
-		ksd.Targets = append(ksd.Targets, sd.Name)
-		for _, labelName := range d.LabelsKeys {
-			labelValue, _ := getField(&sd, labelName)
-			ksd.Labels[fmt.Sprintf("__meta_%s", labelName)] = labelValue
+func (d Discovery) parseToDiscoveryFormat(topSystems []TopSystem) ([]ServiceDiscovery, error) {
+	var serviceDiscovery []ServiceDiscovery
+	for _, topSystem := range topSystems {
+		sd := &ServiceDiscovery{}
+		sd.Labels = make(map[string]string)
+		targetValue, err := d.getField(&topSystem, d.TargetField)
+		if err != nil {
+			return serviceDiscovery, err
 		}
-		//ksd.Labels["__meta_address"] = sd.Address
-		//ksd.Labels["__meta_podid"] = sd.PodID
-		//kalle, _ := getField(&sd, "address")
-		//print(kalle)
-		dis = append(dis, *ksd)
+
+		sd.Targets = append(sd.Targets, targetValue)
+		for _, labelName := range d.LabelsKeys {
+			labelValue, err := d.getField(&topSystem, labelName)
+			if err != nil {
+				return serviceDiscovery, err
+			}
+			sd.Labels[fmt.Sprintf("__meta_%s", labelName)] = labelValue
+		}
+		serviceDiscovery = append(serviceDiscovery, *sd)
 	}
-	return dis
+	return serviceDiscovery, nil
 }
 
-func getField(item interface{}, fieldName string) (string, error) {
+func (d Discovery) getField(item interface{}, fieldName string) (string, error) {
 	v := reflect.ValueOf(item).Elem()
 	if !v.CanAddr() {
+		log.WithFields(log.Fields{
+			"function":  "discovery",
+			"fabric":    d.Fabric,
+			"fieldName": fieldName,
+		}).Error("cannot assign to the item passed, item must be a pointer in order to assign")
 		return "", fmt.Errorf("cannot assign to the item passed, item must be a pointer in order to assign")
 	}
 	// It's possible we can cache this, which is why precompute all these ahead of time.
@@ -65,7 +76,12 @@ func getField(item interface{}, fieldName string) (string, error) {
 		if jt, ok := t.Lookup("json"); ok {
 			return strings.Split(jt, ",")[0], nil
 		}
-		return "", fmt.Errorf("tag provided does not define a json tag", fieldName)
+		log.WithFields(log.Fields{
+			"function":  "discovery",
+			"fabric":    d.Fabric,
+			"fieldName": fieldName,
+		}).Error("tag provided does not define a json tag")
+		return "", fmt.Errorf("tag provided does not define a json tag")
 	}
 	fieldNames := map[string]int{}
 	for i := 0; i < v.NumField(); i++ {
@@ -77,15 +93,18 @@ func getField(item interface{}, fieldName string) (string, error) {
 
 	fieldNum, ok := fieldNames[fieldName]
 	if !ok {
+		log.WithFields(log.Fields{
+			"function":  "discovery",
+			"fabric":    d.Fabric,
+			"fieldName": fieldName,
+		}).Error("field %s does not exist within the provided item")
 		return "", fmt.Errorf("field %s does not exist within the provided item", fieldName)
 	}
 	fieldVal := v.Field(fieldNum)
 	return fieldVal.String(), nil
-	//fieldVal.Set(reflect.ValueOf(value))
-	//return nil
 }
 
-type SystemDiscovery struct {
+type TopSystem struct {
 	Address                 string `json:"address"`
 	BootstrapState          string `json:"bootstrapState"`
 	ChildAction             string `json:"childAction"`

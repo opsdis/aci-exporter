@@ -391,20 +391,27 @@ func (h HandlerInit) discovery(w http.ResponseWriter, r *http.Request) {
 	}
 
 	discovery := Discovery{
-		Fabric:     fabric,
-		LabelsKeys: viper.GetStringSlice("service_discovery.labels"),
+		Fabric:      fabric,
+		LabelsKeys:  viper.GetStringSlice("service_discovery.labels"),
+		TargetField: viper.GetString("service_discovery.target_field"),
 	}
-	dis := discovery.doDiscovery()
+
+	lrw := loggingResponseWriter{ResponseWriter: w}
+
+	serviceDiscoveries, err := discovery.DoDiscovery()
+	if err != nil {
+		lrw.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	//json.NewEncoder(w).Encode(serviceDiscoveries)
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	lrw := loggingResponseWriter{ResponseWriter: w}
-	lrw.WriteHeader(200)
-	//json.NewEncoder(w).Encode(dis)
-
+	lrw.WriteHeader(http.StatusOK)
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "    ")
-	if err := enc.Encode(dis); err != nil {
-		lrw.WriteHeader(500)
+	if err := enc.Encode(serviceDiscoveries); err != nil {
+		lrw.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 }
 
