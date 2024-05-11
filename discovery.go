@@ -98,8 +98,8 @@ func (d Discovery) getField(item interface{}, fieldName string) (string, error) 
 			"function":  "discovery",
 			"fabric":    d.Fabric,
 			"fieldName": fieldName,
-		}).Error("field %s does not exist within the provided item")
-		return "", fmt.Errorf("field %s does not exist within the provided item", fieldName)
+		}).Error("field does not exist within the provided item")
+		return "", fmt.Errorf("field does not exist within the provided item")
 	}
 	fieldVal := v.Field(fieldNum)
 	return fieldVal.String(), nil
