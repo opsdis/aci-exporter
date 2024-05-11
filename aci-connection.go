@@ -31,6 +31,8 @@ import (
 	"github.com/spf13/viper"
 )
 
+const TTLOffset = 120
+
 var responseTimeMetric = promauto.NewHistogramVec(prometheus.HistogramOpts{
 	Name:    MetricsPrefix + "response_time_from_apic",
 	Help:    "Histogram of the time (in seconds) each request took to complete.",
@@ -54,9 +56,10 @@ var refreshFailedMetric = promauto.NewCounterVec(prometheus.CounterOpts{
 )
 
 type AciToken struct {
-	token  string
-	ttl    int64
-	expire int64
+	token    string
+	ttl      int64
+	expire   int64
+	lifetime int64
 }
 
 // AciConnection is the connection object
@@ -160,24 +163,31 @@ func (c *AciConnection) tokenProcessing() (error, bool) {
 	if c.token != nil {
 		c.tokenMutex.Lock()
 		defer c.tokenMutex.Unlock()
-		if c.token.expire < time.Now().Unix() {
+		if c.token.lifetime < time.Now().Unix() {
+			log.WithFields(log.Fields{
+				"requestid": c.ctx.Value("requestid"),
+				"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
+				"token":     fmt.Sprintf("lifetime"),
+			}).Info("token reached lifetime seconds")
+			return nil, false
+		} else if c.token.expire < time.Now().Unix() {
 			response, status, err := c.get("refresh", fmt.Sprintf("%s%s", c.fabricConfig.Apic[*c.activeController], c.URLMap["refresh"]))
 			if err != nil || status != 200 {
 				//errRe = fmt.Errorf("failed to refresh token %s", c.fabricConfig.Apic[*c.activeController])
 				log.WithFields(log.Fields{
 					"requestid": c.ctx.Value("requestid"),
 					"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
-					"token":     fmt.Sprintf("refersh"),
+					"token":     fmt.Sprintf("refresh"),
 				}).Warning(err)
 				refreshFailedMetric.With(prometheus.Labels{
 					"fabric": fmt.Sprintf("%v", c.ctx.Value("fabric"))}).Inc()
 				return err, false
 			} else {
-				c.newToken(response)
+				c.refreshToken(response)
 				log.WithFields(log.Fields{
 					"requestid": c.ctx.Value("requestid"),
 					"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
-					"token":     fmt.Sprintf("refersh"),
+					"token":     fmt.Sprintf("refresh"),
 				}).Info("refresh token")
 				refreshMetric.With(prometheus.Labels{
 					"fabric": fmt.Sprintf("%v", c.ctx.Value("fabric"))}).Inc()
@@ -185,9 +195,10 @@ func (c *AciConnection) tokenProcessing() (error, bool) {
 			}
 		} else {
 			log.WithFields(log.Fields{
-				"requestid": c.ctx.Value("requestid"),
-				"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
-				"token":     fmt.Sprintf("valid"),
+				"requestid":          c.ctx.Value("requestid"),
+				"fabric":             fmt.Sprintf("%v", c.ctx.Value("fabric")),
+				"token":              fmt.Sprintf("valid"),
+				"valid_time_seconds": c.token.expire - time.Now().Unix(),
 			}).Info("token still valid")
 			return nil, true
 		}
@@ -199,11 +210,25 @@ func (c *AciConnection) tokenProcessing() (error, bool) {
 func (c *AciConnection) newToken(response []byte) {
 	token := gjson.Get(string(response), "imdata.0.aaaLogin.attributes.token").String()
 	ttl := gjson.Get(string(response), "imdata.0.aaaLogin.attributes.refreshTimeoutSeconds").Int()
+	lifetimeSeconds := gjson.Get(string(response), "imdata.0.aaaLogin.attributes.maximumLifetimeSeconds").Int()
+	now := time.Now().Unix()
+	c.token = &AciToken{
+		token:    token,
+		ttl:      ttl,
+		expire:   now + ttl - TTLOffset,
+		lifetime: now + lifetimeSeconds - TTLOffset,
+	}
+}
+
+func (c *AciConnection) refreshToken(response []byte) {
+	token := gjson.Get(string(response), "imdata.0.aaaLogin.attributes.token").String()
+	ttl := gjson.Get(string(response), "imdata.0.aaaLogin.attributes.refreshTimeoutSeconds").Int()
 
 	c.token = &AciToken{
-		token:  token,
-		ttl:    ttl,
-		expire: time.Now().Unix() + ttl - 60,
+		token:    token,
+		ttl:      ttl,
+		expire:   time.Now().Unix() + ttl - TTLOffset,
+		lifetime: c.token.lifetime,
 	}
 }
 
