@@ -3,10 +3,11 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	log "github.com/sirupsen/logrus"
-	"github.com/tidwall/gjson"
 	"reflect"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/tidwall/gjson"
 )
 
 type ServiceDiscovery struct {
