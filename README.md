@@ -4,6 +4,9 @@ aci-exporter - A Cisco ACI Prometheus exporter
 
 # Overview
 The aci-exporter provide metrics from a Cisco ACI fabric by using the ACI Rest API against ACPI controller(s).
+The exporter also have the capability to scrape individual splines and leafs based using the aci-exporter inbuilt 
+http based service discovery. Doing direct node queries is typical useful in very large fabrics, where doing all 
+api calls through the apic can Direct node based queries relies on the authentication through the apic.
 
 The exporter can return data both in the [Prometheus](https://prometheus.io/) and the 
 [Openmetrics](https://openmetrics.io/) (v1) exposition format. 
@@ -422,6 +425,73 @@ The aci-exporter will attach the following labels to all metrics
 
 - `aci` the name of the ACI. This is done by an API call.
 - `fabric` the name of the configuration.
+
+# Use aci-exporter in large fabric setups (since 0.8.0)
+In large fabrics the aci-exporter provide a way to distribute the api calls to the individual spine and leaf nodes 
+instead of using a single apic (or multiple behind a LB).
+This configuration depend on the aci-exporter's dynamic service discovery used by Prometheus. The discovery detect all 
+the current nodes in the fabric including the apic's. To collect metrics the same `/probe` api is used with the addition 
+of the query parameter `node` that is set to the spine or leaf node where to scrape. 
+
+## Service discovery
+The service discovery is exposed on the `/sd` endpoint where the query parameter `target` is the name in fabric in the
+`config.yml` file, e.g. `'http://localhost:9643/sd?fabric=xyz'`. The output can look like this:
+```json
+[
+    ......,
+    {
+        "targets": [
+            "spine299"
+        ],
+        "labels": {
+            "__meta_address": "10.3.96.64",
+            "__meta_dn": "topology/pod-2/node-299/sys",
+            "__meta_fabricDomain": "fab2",
+            "__meta_fabricId": "1",
+            "__meta_id": "299",
+            "__meta_inbMgmtAddr": "0.0.0.0",
+            "__meta_name": "spine299",
+            "__meta_nameAlias": "",
+            "__meta_nodeType": "unspecified",
+            "__meta_oobMgmtAddr": "172.16.0.76",
+            "__meta_podId": "2",
+            "__meta_role": "spine",
+            "__meta_serial": "FDO243503ZG",
+            "__meta_siteId": "2",
+            "__meta_state": "in-service",
+            "__meta_version": "n9000-16.0(5h)"
+        }
+    }
+]
+```
+The discovery response can now be used in the prometheus configuration as described in the example file 
+[`prometheus/prometheus_nodes.yml`](prometheus/prometheus_nodes.yml).
+
+## Configure node queries
+> This my change
+There is no difference how a node query is configured in the aci-exporter from apic query except:
+1. Not all queries are supported on the node
+2. When extracting label values there is no information about the node id or pod id. These must be managed by 
+discovery and relabeling, see [`prometheus/prometheus_nodes.yml`](prometheus/prometheus_nodes.yml)
+3. The resulting DN is different between apic api and node api. From the apic we typical do label extraction using 
+```yaml
+    labels:
+      # The field in the json used to parse the labels from
+      - property_name: ethpmPhysIf.attributes.dn
+        # The regex where the string enclosed in the P<xyz> is the label name
+        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/phys-\\[(?P<interface>[^\\]]+)\\]/"
+```
+  In the above the topology path is part of the response. But for a node based query the same would be:
+```yaml
+    labels:
+      # The field in the json used to parse the labels from
+      - property_name: ethpmPhysIf.attributes.dn
+        # The regex where the string enclosed in the P<xyz> is the label name
+        regex: "^sys/phys-\\[(?P<interface>[^\\]]+)\\]/"
+```
+ As mentioned above the podid and nodeid is added to the timeserie using Prometheus relabeling.
+
+4. Node queries must have named queries in the Prometheus config
 
 # Configuration
 

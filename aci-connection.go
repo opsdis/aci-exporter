@@ -72,16 +72,24 @@ type AciConnection struct {
 	Client           http.Client
 	token            *AciToken
 	tokenMutex       sync.Mutex
-	//responseTime     *prometheus.HistogramVec
+	// If a node query this is set to the instance
+	Node *string
 }
 
 var connectionCache = make(map[*Fabric]*AciConnection)
 
-func newAciConnection(ctx context.Context, fabricConfig *Fabric) *AciConnection {
+func newAciConnection(ctx context.Context, fabricConfig *Fabric, node *string) *AciConnection {
 
 	val, ok := connectionCache[fabricConfig]
+	// Determine if this is an apic or node query
 	if ok {
-		return val
+		if node == nil {
+			val.Node = nil
+			return val
+		} else {
+			val.Node = node
+			return val
+		}
 	}
 
 	var httpClient = HTTPClient{
@@ -108,7 +116,7 @@ func newAciConnection(ctx context.Context, fabricConfig *Fabric) *AciConnection 
 		URLMap:           urlMap,
 		Headers:          headers,
 		Client:           *httpClient,
-		//responseTime:     responseTime,
+		Node:             node,
 	}
 	connectionCache[fabricConfig] = con
 	return connectionCache[fabricConfig]
@@ -233,8 +241,9 @@ func (c *AciConnection) refreshToken(response []byte) {
 }
 
 func (c *AciConnection) logout() bool {
+	logoutBody := fmt.Sprintf("{\"aaaUser\":{\"attributes\":{\"name\":\"%s\"}}}", c.fabricConfig.Username)
 	_, status, err := c.doPostJSON("logout", fmt.Sprintf("%s%s", c.fabricConfig.Apic[*c.activeController], c.URLMap["logout"]),
-		[]byte(fmt.Sprintf("{\"aaaUser\":{\"attributes\":{\"name\":\"%s\"}}}", c.fabricConfig.Username)))
+		[]byte(logoutBody))
 	if err != nil || status != 200 {
 		log.WithFields(log.Fields{
 			"requestid": c.ctx.Value("requestid"),
@@ -258,15 +267,30 @@ func (c *AciConnection) getByQuery(table string) (string, error) {
 }
 
 func (c *AciConnection) getByClassQuery(class string, query string) (string, error) {
-	data, _, err := c.get(class, fmt.Sprintf("%s/api/class/%s.json%s", c.fabricConfig.Apic[*c.activeController], class, query))
-	if err != nil {
-		log.WithFields(log.Fields{
-			"requestid": c.ctx.Value("requestid"),
-			"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
-		}).Error(fmt.Sprintf("Class request %s failed - %s.", class, err))
-		return "", err
+	if c.Node == nil {
+		// A apic query
+		data, _, err := c.get(class, fmt.Sprintf("%s/api/class/%s.json%s", c.fabricConfig.Apic[*c.activeController], class, query))
+		if err != nil {
+			log.WithFields(log.Fields{
+				"requestid": c.ctx.Value("requestid"),
+				"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
+			}).Error(fmt.Sprintf("Class request %s failed - %s.", class, err))
+			return "", err
+		}
+		return string(data), nil
+	} else {
+		// A node query
+		data, _, err := c.get(class, fmt.Sprintf("%s/api/class/%s.json%s", *c.Node, class, query))
+		if err != nil {
+			log.WithFields(log.Fields{
+				"requestid": c.ctx.Value("requestid"),
+				"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
+				"Node":      c.Node,
+			}).Error(fmt.Sprintf("Class request %s failed - %s.", class, err))
+			return "", err
+		}
+		return string(data), nil
 	}
-	return string(data), nil
 }
 
 func (c *AciConnection) get(label string, url string) ([]byte, int, error) {

@@ -32,7 +32,7 @@ import (
 
 var arrayExtension = regexpcache.MustCompile("^(?P<stage_1>.*)\\.\\[(?P<child_name>.*)\\](?P<stage_2>.*)")
 
-func newAciAPI(ctx context.Context, fabricConfig *Fabric, configQueries AllQueries, queryFilter string) *aciAPI {
+func newAciAPI(ctx context.Context, fabricConfig *Fabric, configQueries AllQueries, queryFilter string, node *string) *aciAPI {
 
 	executeQueries := configQueries
 	queryArray := strings.Split(queryFilter, ",")
@@ -66,7 +66,7 @@ func newAciAPI(ctx context.Context, fabricConfig *Fabric, configQueries AllQueri
 
 	api := &aciAPI{
 		ctx:                   ctx,
-		connection:            newAciConnection(ctx, fabricConfig),
+		connection:            newAciConnection(ctx, fabricConfig, node),
 		metricPrefix:          viper.GetString("prefix"),
 		configQueries:         executeQueries.ClassQueries,
 		configCompoundQueries: executeQueries.CompoundClassQueries,
@@ -308,6 +308,10 @@ func (p aciAPI) faults(ch chan []MetricDefinition) {
 }
 
 func (p aciAPI) getAciName() (string, error) {
+	// Do not query aci name when query a node
+	if p.connection.Node != nil {
+		return "", nil
+	}
 	if p.connection.fabricConfig.AciName != "" {
 		return p.connection.fabricConfig.AciName, nil
 	}

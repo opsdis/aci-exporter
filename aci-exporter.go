@@ -19,6 +19,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http/pprof"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -338,7 +339,7 @@ func cliQuery(fabric *string, class *string, query *string) string {
 
 	fabricConfig := Fabric{Username: username, Password: password, Apic: apicControllers, AciName: aciName}
 	ctx := context.TODO()
-	con := *newAciConnection(ctx, &fabricConfig)
+	con := *newAciConnection(ctx, &fabricConfig, nil)
 	err = con.login()
 	if err != nil {
 		fmt.Printf("Login error %s", err)
@@ -366,7 +367,7 @@ type HandlerInit struct {
 
 func (h HandlerInit) discovery(w http.ResponseWriter, r *http.Request) {
 
-	fabric := r.URL.Query().Get("fabric")
+	fabric := r.URL.Query().Get("target")
 	if fabric != strings.ToLower(fabric) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 		w.Header().Set("Content-Length", "0")
@@ -403,7 +404,6 @@ func (h HandlerInit) discovery(w http.ResponseWriter, r *http.Request) {
 		lrw.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	//json.NewEncoder(w).Encode(serviceDiscoveries)
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	lrw.WriteHeader(http.StatusOK)
@@ -423,9 +423,25 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 		openmetrics = true
 	}
 
+	var node *string
 	fabric := r.URL.Query().Get("target")
 	queries := r.URL.Query().Get("queries")
-
+	nodeName := r.URL.Query().Get("node")
+	if nodeName != "" {
+		// Check if the nodeName is a valid url if not append https://
+		if queries == "" {
+			lrw := loggingResponseWriter{ResponseWriter: w}
+			lrw.WriteHeader(400)
+			return
+		}
+		_, err := url.ParseRequestURI(nodeName)
+		if err != nil {
+			nodeName = fmt.Sprintf("https://%s", nodeName)
+		}
+		node = &nodeName
+	} else {
+		node = nil
+	}
 	if fabric != strings.ToLower(fabric) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 		w.Header().Set("Content-Length", "0")
@@ -452,7 +468,7 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 	ctx = context.WithValue(ctx, "fabric", fabric)
-	api := *newAciAPI(ctx, h.AllFabrics[fabric], h.AllQueries, queries)
+	api := *newAciAPI(ctx, h.AllFabrics[fabric], h.AllQueries, queries, node)
 
 	start := time.Now()
 	aciName, metrics, err := api.CollectMetrics()
