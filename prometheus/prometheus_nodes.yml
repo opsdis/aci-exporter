@@ -1,0 +1,79 @@
+# example for aci-exporter
+global:
+  scrape_interval:     15s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
+  evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute.
+  # scrape_timeout is set to the global default (10s).
+
+# A scrape configuration containing exactly one endpoint to scrape:
+# Here it's Prometheus itself.
+scrape_configs:
+
+  - job_name: 'aci'
+    scrape_interval: 1m
+    scrape_timeout: 30s
+    metrics_path: /probe
+    params:
+      queries:
+        - health,fabric_node_info,object_count,max_capacity
+
+    static_configs:
+      - targets: [ 'sydney' ]
+
+    relabel_configs:
+      - source_labels: [ __address__ ]
+        target_label: __param_target
+      - source_labels: [ __param_target ]
+        target_label: instance
+      - target_label: __address__
+        replacement: 127.0.0.1:9643
+
+  - job_name: 'aci_nodes'
+    scrape_interval: 1m
+    scrape_timeout: 30s
+    metrics_path: /probe
+    params:
+      queries:
+        - node_interface_info
+
+    http_sd_configs:
+      - url: "http://localhost:9643/sd?target=sydney"
+        refresh_interval: 5m
+
+    relabel_configs:
+      - target_label: __param_target
+        replacement: "sydney"
+      - source_labels: [ __meta_role ]
+        # Do not include the controllers
+        regex: "controller"
+        action: "drop"
+
+      - source_labels: [ __meta_fabricDomain ]
+        target_label: aci
+
+       # Example how to add https:// to the ip, by default https:// is added by exporter
+#      - source_labels: [ __meta_oobMgmtAddr ]
+#        action: replace
+#        regex: (.*)
+#        replacement: https://$1
+#        target_label: __param_node
+
+      # Use the oobMgmtAddr IP as the way to do direct node queries. Depending on configuration this could also be
+      # the inbMgmtAddr - just change the below relabeling
+      - source_labels: [ __meta_oobMgmtAddr ]
+        target_label: __param_node
+
+      - source_labels: [ __meta_id ]
+        target_label: node_id
+      - source_labels: [ __meta_id ]
+        target_label: nodeid
+      - source_labels: [ __meta_podId ]
+        target_label: podid
+      - source_labels: [ __meta_role ]
+        target_label: role
+      - source_labels: [ __meta_name ]
+        target_label: name
+      - source_labels: [ __meta_oobMgmtAddr ]
+        target_label: instance
+      - target_label: __address__
+        replacement: 127.0.0.1:9643
+
