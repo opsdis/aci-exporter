@@ -17,6 +17,7 @@ type ServiceDiscovery struct {
 
 type Discovery struct {
 	Fabric      string
+	Fabrics     map[string]*Fabric
 	LabelsKeys  []string
 	TargetField string
 }
@@ -24,19 +25,35 @@ type Discovery struct {
 func (d Discovery) DoDiscovery() ([]ServiceDiscovery, error) {
 	class := "topSystem"
 	query := ""
-	data := cliQuery(&d.Fabric, &class, &query)
+
+	var topSystems []TopSystem
+	if d.Fabric != "" {
+		topSystems = d.getTopSystem(class, query, d.Fabric)
+	} else {
+		for key := range d.Fabrics {
+			top := d.getTopSystem(class, query, key)
+			topSystems = append(topSystems, top...)
+		}
+	}
+
+	return d.parseToDiscoveryFormat(topSystems)
+}
+
+func (d Discovery) getTopSystem(class string, query string, fabricName string) []TopSystem {
+	data := cliQuery(&fabricName, &class, &query)
 
 	var topSystems []TopSystem
 	result := gjson.Get(data, "imdata")
 	result.ForEach(func(key, value gjson.Result) bool {
 		topSystemJson := gjson.Get(value.Raw, "topSystem.attributes").Raw
 		topSystem := &TopSystem{}
-		json.Unmarshal([]byte(topSystemJson), topSystem)
+		topSystem.ACIExporterFabric = fabricName
+		_ = json.Unmarshal([]byte(topSystemJson), topSystem)
 		topSystems = append(topSystems, *topSystem)
 		return true
 	})
 
-	return d.parseToDiscoveryFormat(topSystems)
+	return topSystems
 }
 
 func (d Discovery) parseToDiscoveryFormat(topSystems []TopSystem) ([]ServiceDiscovery, error) {
@@ -50,6 +67,9 @@ func (d Discovery) parseToDiscoveryFormat(topSystems []TopSystem) ([]ServiceDisc
 		}
 
 		sd.Targets = append(sd.Targets, targetValue)
+
+		sd.Labels[fmt.Sprintf("__meta_%s", "aci_exporter_fabric")] = topSystem.ACIExporterFabric
+
 		for _, labelName := range d.LabelsKeys {
 			labelValue, err := d.getField(&topSystem, labelName)
 			if err != nil {
@@ -57,6 +77,7 @@ func (d Discovery) parseToDiscoveryFormat(topSystems []TopSystem) ([]ServiceDisc
 			}
 			sd.Labels[fmt.Sprintf("__meta_%s", labelName)] = labelValue
 		}
+
 		serviceDiscovery = append(serviceDiscovery, *sd)
 	}
 	return serviceDiscovery, nil
@@ -158,4 +179,5 @@ type TopSystem struct {
 	UnicastXrEpLearnDisable string `json:"unicastXrEpLearnDisable"`
 	Version                 string `json:"version"`
 	VirtualMode             string `json:"virtualMode"`
+	ACIExporterFabric       string `json:"aci_exporter_fabric"`
 }

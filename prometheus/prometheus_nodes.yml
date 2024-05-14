@@ -40,8 +40,9 @@ scrape_configs:
         refresh_interval: 5m
 
     relabel_configs:
-      - target_label: __param_target
-        replacement: "sydney"
+      - source_labels: [ __meta_aci_exporter_fabric ]
+        target_label: __param_target
+
       - source_labels: [ __meta_role ]
         # Do not include the controllers
         regex: "controller"

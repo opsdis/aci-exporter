@@ -379,20 +379,23 @@ func (h HandlerInit) discovery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, ok := h.AllFabrics[fabric]
-	if !ok {
-		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
-		w.Header().Set("Content-Length", "0")
-		log.WithFields(log.Fields{
-			"fabric": fabric,
-		}).Warning("fabric target do not exists")
-		lrw := loggingResponseWriter{ResponseWriter: w}
-		lrw.WriteHeader(404)
-		return
+	if fabric != "" {
+		_, ok := h.AllFabrics[fabric]
+		if !ok {
+			w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+			w.Header().Set("Content-Length", "0")
+			log.WithFields(log.Fields{
+				"fabric": fabric,
+			}).Warning("fabric target do not exists")
+			lrw := loggingResponseWriter{ResponseWriter: w}
+			lrw.WriteHeader(404)
+			return
+		}
 	}
 
 	discovery := Discovery{
 		Fabric:      fabric,
+		Fabrics:     h.AllFabrics,
 		LabelsKeys:  viper.GetStringSlice("service_discovery.labels"),
 		TargetField: viper.GetString("service_discovery.target_field"),
 	}
@@ -507,7 +510,8 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		lrw.WriteHeader(503)
 	}
-	w.Write([]byte(bodyText))
+	_, _ = w.Write([]byte(bodyText))
+
 	return
 }
 
@@ -519,7 +523,7 @@ func alive(w http.ResponseWriter, r *http.Request) {
 	lrw := loggingResponseWriter{ResponseWriter: w}
 	lrw.WriteHeader(200)
 
-	w.Write([]byte(alive))
+	_, _ = w.Write([]byte(alive))
 }
 
 func nextRequestID() ksuid.KSUID {
