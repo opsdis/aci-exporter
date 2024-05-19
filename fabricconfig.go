@@ -14,8 +14,9 @@
 package main
 
 type Fabric struct {
-	Username string `mapstructure:"username"`
-	Password string `mapstructure:"password"`
-	Apic     []string
-	AciName  string `mapstructure:"aci_name"`
+	Username        string                 `mapstructure:"username"`
+	Password        string                 `mapstructure:"password"`
+	Apic            []string               `mapstructure:"apic"`
+	AciName         string                 `mapstructure:"aci_name"`
+	DiscoveryConfig DiscoveryConfiguration `mapstructure:"service_discovery"`
 }

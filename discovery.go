@@ -1,3 +1,14 @@
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 package main
 
 import (
@@ -15,28 +26,35 @@ type ServiceDiscovery struct {
 	Labels  map[string]string `json:"labels"`
 }
 
+type DiscoveryConfiguration struct {
+	LabelsKeys   []string `mapstructure:"labels"`
+	TargetFields []string `mapstructure:"target_fields"`
+	TargetFormat string   `mapstructure:"target_format"`
+}
+
 type Discovery struct {
-	Fabric      string
-	Fabrics     map[string]*Fabric
-	LabelsKeys  []string
-	TargetField string
+	Fabric  string
+	Fabrics map[string]*Fabric
 }
 
 func (d Discovery) DoDiscovery() ([]ServiceDiscovery, error) {
 	class := "topSystem"
 	query := ""
-
+	var serviceDiscoveries []ServiceDiscovery
 	var topSystems []TopSystem
 	if d.Fabric != "" {
 		topSystems = d.getTopSystem(class, query, d.Fabric)
+		sds, _ := d.parseToDiscoveryFormat(d.Fabric, topSystems)
+		serviceDiscoveries = append(serviceDiscoveries, sds...)
 	} else {
 		for key := range d.Fabrics {
-			top := d.getTopSystem(class, query, key)
-			topSystems = append(topSystems, top...)
+			topSystems := d.getTopSystem(class, query, key)
+			sds, _ := d.parseToDiscoveryFormat(key, topSystems)
+			serviceDiscoveries = append(serviceDiscoveries, sds...)
 		}
 	}
 
-	return d.parseToDiscoveryFormat(topSystems)
+	return serviceDiscoveries, nil
 }
 
 func (d Discovery) getTopSystem(class string, query string, fabricName string) []TopSystem {
@@ -56,28 +74,31 @@ func (d Discovery) getTopSystem(class string, query string, fabricName string) [
 	return topSystems
 }
 
-func (d Discovery) parseToDiscoveryFormat(topSystems []TopSystem) ([]ServiceDiscovery, error) {
+func (d Discovery) parseToDiscoveryFormat(fabricName string, topSystems []TopSystem) ([]ServiceDiscovery, error) {
 	var serviceDiscovery []ServiceDiscovery
 	for _, topSystem := range topSystems {
 		sd := &ServiceDiscovery{}
-		sd.Labels = make(map[string]string)
-		targetValue, err := d.getField(&topSystem, d.TargetField)
-		if err != nil {
-			return serviceDiscovery, err
+		targetValue := make([]interface{}, len(d.Fabrics[fabricName].DiscoveryConfig.TargetFields))
+		for i, field := range d.Fabrics[fabricName].DiscoveryConfig.TargetFields {
+			val, err := d.getField(&topSystem, field)
+			targetValue[i] = val
+			if err != nil {
+				return serviceDiscovery, err
+			}
 		}
 
-		sd.Targets = append(sd.Targets, targetValue)
+		sd.Targets = append(sd.Targets, fmt.Sprintf(d.Fabrics[fabricName].DiscoveryConfig.TargetFormat, targetValue...))
 
+		sd.Labels = make(map[string]string)
 		sd.Labels[fmt.Sprintf("__meta_%s", "aci_exporter_fabric")] = topSystem.ACIExporterFabric
 
-		for _, labelName := range d.LabelsKeys {
+		for _, labelName := range d.Fabrics[fabricName].DiscoveryConfig.LabelsKeys {
 			labelValue, err := d.getField(&topSystem, labelName)
 			if err != nil {
 				return serviceDiscovery, err
 			}
 			sd.Labels[fmt.Sprintf("__meta_%s", labelName)] = labelValue
 		}
-
 		serviceDiscovery = append(serviceDiscovery, *sd)
 	}
 	return serviceDiscovery, nil

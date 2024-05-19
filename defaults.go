@@ -88,5 +88,6 @@ func SetDefaultValues() {
 		"inbMgmtAddr", "name", "nameAlias", "nodeType", "oobMgmtAddr", "podId", "role", "serial", "siteId", "state",
 		"version",
 	})
-	viper.SetDefault("service_discovery.target_field", "name")
+	viper.SetDefault("service_discovery.target_fields", []string{"aci_exporter_fabric", "oobMgmtAddr"})
+	viper.SetDefault("service_discovery.target_format", "%s#%s")
 }

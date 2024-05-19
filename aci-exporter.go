@@ -196,6 +196,7 @@ func main() {
 		GroupClassQueries:    queries.GroupClassQueries,
 	}
 
+	// Init all fabrics
 	allFabrics := make(map[string]*Fabric)
 
 	err = viper.UnmarshalKey("fabrics", &allFabrics)
@@ -204,6 +205,18 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Init discovery settings
+	for fabricName := range allFabrics {
+		if allFabrics[fabricName].DiscoveryConfig.TargetFields == nil {
+			allFabrics[fabricName].DiscoveryConfig.TargetFields = viper.GetStringSlice("service_discovery.target_fields")
+		}
+		if allFabrics[fabricName].DiscoveryConfig.LabelsKeys == nil {
+			allFabrics[fabricName].DiscoveryConfig.LabelsKeys = viper.GetStringSlice("service_discovery.labels")
+		}
+		if allFabrics[fabricName].DiscoveryConfig.TargetFormat == "" {
+			allFabrics[fabricName].DiscoveryConfig.TargetFormat = viper.GetString("service_discovery.target_format")
+		}
+	}
 	// Overwrite username or password for APIC by environment variables if set
 	for fabricName := range allFabrics {
 		fabricEnv(fabricName, allFabrics)
@@ -392,12 +405,43 @@ func (h HandlerInit) discovery(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	/*
+		config := DiscoveryConfiguration{
+			LabelsKeys:   nil,
+			TargetFields: nil,
+			TargetFormat: "",
+		}
+		// Init discovery with fabric specific
+		if h.AllFabrics[fabric].DiscoveryConfig.TargetFields != nil {
+			config.TargetFields = h.AllFabrics[fabric].DiscoveryConfig.TargetFields
+		} else {
+			config.TargetFields = viper.GetStringSlice("service_discovery.target_fields")
+		}
+		if h.AllFabrics[fabric].DiscoveryConfig.LabelsKeys != nil {
+			config.LabelsKeys = h.AllFabrics[fabric].DiscoveryConfig.LabelsKeys
+		} else {
+			config.LabelsKeys = viper.GetStringSlice("service_discovery.labels")
+		}
+		if h.AllFabrics[fabric].DiscoveryConfig.TargetFormat != "" {
+			config.TargetFormat = h.AllFabrics[fabric].DiscoveryConfig.TargetFormat
+		} else {
+			config.TargetFormat = viper.GetString("service_discovery.target_format")
+		}
+
+	*/
+	/*
+		config := DiscoveryConfiguration{
+			LabelsKeys:   viper.GetStringSlice("service_discovery.labels"),
+			TargetFields: viper.GetStringSlice("service_discovery.target_fields"),
+			TargetFormat: viper.GetString("service_discovery.target_format"),
+		}
+
+	*/
 
 	discovery := Discovery{
-		Fabric:      fabric,
-		Fabrics:     h.AllFabrics,
-		LabelsKeys:  viper.GetStringSlice("service_discovery.labels"),
-		TargetField: viper.GetString("service_discovery.target_field"),
+		Fabric:  fabric,
+		Fabrics: h.AllFabrics,
+		//DiscoveryConfig: config,
 	}
 
 	lrw := loggingResponseWriter{ResponseWriter: w}

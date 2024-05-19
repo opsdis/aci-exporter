@@ -430,42 +430,103 @@ The aci-exporter will attach the following labels to all metrics
 In large fabrics the aci-exporter provide a way to distribute the api calls to the individual spine and leaf nodes 
 instead of using a single apic (or multiple behind a LB).
 This configuration depend on the aci-exporter's dynamic service discovery used by Prometheus. The discovery detect all 
-the current nodes in the fabric including the apic's. To collect metrics the same `/probe` api is used with the addition 
-of the query parameter `node` that is set to the spine or leaf node where to scrape. 
+the current nodes in the fabric including the apic's based on the `topSystems` class. To collect metrics the same 
+`/probe` api is used with the addition 
+of the query parameter `node` that is set to the spine or leaf node where to scrape.
 
 ## Service discovery
 The service discovery is exposed on the `/sd` endpoint where the query parameter `target` is the name in fabric in the
 `config.yml` file, e.g. `'http://localhost:9643/sd?fabric=xyz'`. The output can look like this:
+
 ```json
-[
-    ......,
+    ....
+    },
     {
         "targets": [
-            "spine299"
+            "sydney#172.16.0.68"
         ],
         "labels": {
-            "__meta_address": "10.3.96.64",
-            "__meta_dn": "topology/pod-2/node-299/sys",
+            "__meta_aci_exporter_fabric": "sydney",
+            "__meta_address": "10.3.96.66",
+            "__meta_dn": "topology/pod-2/node-202/sys",
             "__meta_fabricDomain": "fab2",
             "__meta_fabricId": "1",
-            "__meta_id": "299",
+            "__meta_id": "202",
             "__meta_inbMgmtAddr": "0.0.0.0",
-            "__meta_name": "spine299",
+            "__meta_name": "leaf202",
             "__meta_nameAlias": "",
             "__meta_nodeType": "unspecified",
-            "__meta_oobMgmtAddr": "172.16.0.76",
+            "__meta_oobMgmtAddr": "172.16.0.68",
             "__meta_podId": "2",
-            "__meta_role": "spine",
-            "__meta_serial": "FDO243503ZG",
+            "__meta_role": "leaf",
+            "__meta_serial": "FDO2442054U",
             "__meta_siteId": "2",
             "__meta_state": "in-service",
             "__meta_version": "n9000-16.0(5h)"
         }
-    }
-]
+    },
+    .....
 ```
+As describe in the example above the `targets` is by default set to the fabric name defined in the aci-exporter 
+config.yaml, the label `__meta_aci_exporter_fabric` and the label `__meta_oobMgmtAddr` separated with a `#` character.
+The `#` character can be used in the prometheus config as a separator to get both query parameters need to access a 
+single node:
+```yaml
+    relabel_configs:
+      
+      # Get the target param from __address__ that is <fabric>#<oobMgmtAddr> by default
+      - source_labels: [ __address__ ]
+        separator: "#"
+        regex: (.*)#(.*)
+        replacement: "$1"
+        target_label: __param_target
+
+      # Get the node param from __address__ that is <fabric>#<oobMgmtAddr> by default
+      - source_labels: [ __address__ ]
+        separator: "#"
+        regex: (.*)#(.*)
+        replacement: "$2"
+        target_label: 
+```
+
+If the endpoint is called without a query parameter, service discovery is done for all configured fabrics.
 The discovery response can now be used in the prometheus configuration as described in the example file 
 [`prometheus/prometheus_nodes.yml`](prometheus/prometheus_nodes.yml).
+
+What the service discovery should return can be highly configurable. This is both related to the targets and labels 
+returned. 
+
+Overriding the defaults can be done for all fabrics, but also for individual fabrics. The individual configuration always
+take precedence.  
+
+For the targets the default is to return fabric name and oobMgmtAddr, but if all fabrics instead use the inbMgmtAddr 
+for access this can be changed in the config.yaml  
+```yaml
+# Common service discovery
+service_discovery:
+  target_format: "%s#%s"
+  target_fields:
+    - aci_exporter_fabric
+    - inMgmtAddr
+```
+
+For each fabric the discovery can also be override using the same definitions as above but on the fabric level.
+```yaml
+fabrics:
+  # This is the Cisco provided sandbox that is open for testing
+  cisco_sandbox:
+    username: admin
+    password: <check the cisco sandbox to get the password>
+    apic:
+      - https://sandboxapicdc.cisco.com
+    service_discovery:
+     target_format: "%s#%s"
+     target_fields:
+      - aci_exporter_fabric
+      - inbMgmtAddr
+```
+
+All fields returned by the `topSystems` class query can be used as targets and labels.
 
 ## Configure node queries
 > This my change
