@@ -285,7 +285,7 @@ func (c *AciConnection) getByClassQuery(class string, query string) (string, err
 			log.WithFields(log.Fields{
 				"requestid": c.ctx.Value("requestid"),
 				"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
-				"Node":      c.Node,
+				"node":      c.Node,
 			}).Error(fmt.Sprintf("Class request %s failed - %s.", class, err))
 			return "", err
 		}
