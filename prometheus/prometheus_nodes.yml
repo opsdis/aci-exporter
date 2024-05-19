@@ -17,10 +17,18 @@ scrape_configs:
       queries:
         - health,fabric_node_info,object_count,max_capacity
 
-    static_configs:
-      - targets: [ 'sydney' ]
+    http_sd_configs:
+      # discovery all fabrics
+      # To discover an individual fabric use - url: "http://localhost:9643/sd?target=<fabric>"
+      - url: "http://localhost:9643/sd"
+        refresh_interval: 5m
 
     relabel_configs:
+      - source_labels: [ __meta_role ]
+        # Do not include the controllers
+        regex: "aci_exporter_fabric"
+        action: "keep"
+
       - source_labels: [ __address__ ]
         target_label: __param_target
       - source_labels: [ __param_target ]
@@ -46,8 +54,8 @@ scrape_configs:
     relabel_configs:
       - source_labels: [ __meta_role ]
         # Do not include the controllers
-        regex: "controller"
-        action: "drop"
+        regex: "(spine|leaf)"
+        action: "keep"
 
       # Get the target param from __address__ that is <fabric>#<oobMgmtAddr> by default
       - source_labels: [ __address__ ]

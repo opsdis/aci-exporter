@@ -469,10 +469,14 @@ The service discovery is exposed on the `/sd` endpoint where the query parameter
 ```
 As describe in the example above the `targets` is by default set to the fabric name defined in the aci-exporter 
 config.yaml, the label `__meta_aci_exporter_fabric` and the label `__meta_oobMgmtAddr` separated with a `#` character.
-The `#` character can be used in the prometheus config as a separator to get both query parameters need to access a 
-single node:
+The `#` character can be used in the prometheus config as a separator to get both query parameters needed to access a 
+single node of a spine or leaf:
 ```yaml
     relabel_configs:
+      - source_labels: [ __meta_role ]
+        # Only run this job for spine and leaf roles
+        regex: "(spine|leaf)"
+        action: "keep"
       
       # Get the target param from __address__ that is <fabric>#<oobMgmtAddr> by default
       - source_labels: [ __address__ ]
@@ -499,8 +503,9 @@ returned.
 Overriding the defaults can be done for all fabrics, but also for individual fabrics. The individual configuration always
 take precedence.  
 
-For the targets the default is to return fabric name and oobMgmtAddr, but if all fabrics instead use the inbMgmtAddr 
-for access this can be changed in the config.yaml  
+For the targets the default is to return fabric name and `oobMgmtAddr`, but if all fabrics instead use the inbMgmtAddr 
+for access this can be changed in the `config.yaml`  
+
 ```yaml
 # Common service discovery
 service_discovery:
@@ -527,6 +532,51 @@ fabrics:
 ```
 
 All fields returned by the `topSystems` class query can be used as targets and labels.
+
+## Fabric service discovery 
+The service discovery will also return the discovery of the configured aci-exporter fabrics. This will be entires
+with the following content:
+
+```yaml
+    {
+        "targets": [
+            "cisco_sandbox"
+        ],
+        "labels": {
+            "__meta_role": "aci_exporter_fabric"
+        }
+    }
+
+``` 
+
+This can now be used from the prometheus configuration to do the "classic" apic queries like:
+```yaml
+  - job_name: 'aci'
+    scrape_interval: 1m
+    scrape_timeout: 30s
+    metrics_path: /probe
+    params:
+      queries:
+        - health,fabric_node_info,object_count,max_capacity
+
+    http_sd_configs:
+      - url: "http://localhost:9643/sd"
+        refresh_interval: 5m
+
+    relabel_configs:
+      - source_labels: [ __meta_role ]
+        regex: "aci_exporter_fabric"
+        action: "keep"
+
+      - source_labels: [ __address__ ]
+        target_label: __param_target
+      - source_labels: [ __param_target ]
+        target_label: instance
+      - target_label: __address__
+        replacement: 127.0.0.1:9643
+```
+Please review [`prometheus/prometheus_nodes.yml`](prometheus/prometheus_nodes.yml) example. With discovery there is 
+no need for any static configuration and only two job configurations to manage all aci fabrics configured.
 
 ## Configure node queries
 > This my change

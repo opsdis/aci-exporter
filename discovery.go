@@ -26,6 +26,13 @@ type ServiceDiscovery struct {
 	Labels  map[string]string `json:"labels"`
 }
 
+func NewServiceDiscovery() ServiceDiscovery {
+	return ServiceDiscovery{
+		Targets: make([]string, 0),
+		Labels:  make(map[string]string),
+	}
+}
+
 type DiscoveryConfiguration struct {
 	LabelsKeys   []string `mapstructure:"labels"`
 	TargetFields []string `mapstructure:"target_fields"`
@@ -46,11 +53,20 @@ func (d Discovery) DoDiscovery() ([]ServiceDiscovery, error) {
 		topSystems = d.getTopSystem(class, query, d.Fabric)
 		sds, _ := d.parseToDiscoveryFormat(d.Fabric, topSystems)
 		serviceDiscoveries = append(serviceDiscoveries, sds...)
+		fabricSd := NewServiceDiscovery()
+		fabricSd.Targets = append(fabricSd.Targets, d.Fabric)
+		fabricSd.Labels["__meta_role"] = "aci_exporter_fabric"
+		serviceDiscoveries = append(serviceDiscoveries, fabricSd)
 	} else {
 		for key := range d.Fabrics {
 			topSystems := d.getTopSystem(class, query, key)
 			sds, _ := d.parseToDiscoveryFormat(key, topSystems)
 			serviceDiscoveries = append(serviceDiscoveries, sds...)
+			fabricSd := NewServiceDiscovery()
+			fabricSd.Targets = append(fabricSd.Targets, key)
+			fabricSd.Labels["__meta_role"] = "aci_exporter_fabric"
+			serviceDiscoveries = append(serviceDiscoveries, fabricSd)
+
 		}
 	}
 
