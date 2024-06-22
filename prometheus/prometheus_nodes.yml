@@ -25,7 +25,7 @@ scrape_configs:
 
     relabel_configs:
       - source_labels: [ __meta_role ]
-        # Do not include the controllers
+        # Only include the aci_exporter_fabric __meta_role
         regex: "aci_exporter_fabric"
         action: "keep"
 
@@ -53,7 +53,7 @@ scrape_configs:
 
     relabel_configs:
       - source_labels: [ __meta_role ]
-        # Do not include the controllers
+        # Only include the spine and leaf __meta_role
         regex: "(spine|leaf)"
         action: "keep"
 
