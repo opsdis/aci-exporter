@@ -758,10 +758,10 @@ To get the metrics in openmetrics format use the header `Accept: application/ope
 Please see the example file prometheus/prometheus.yml.
 
 # Docker 
-The aci-export can be build and run as a docker container. 
+The aci-export can be build and run as a docker container and it supports multi-arch.
 
 ```shell
-docker build . -t aci-exporter
+docker buildx build . -t regystry/aci-exporter:Version --platform=linux/arm64,linux/amd64 --push
 ```
 
 To run as docker use environment variables to define configuration.
