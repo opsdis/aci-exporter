@@ -49,6 +49,8 @@ func SetDefaultValues() {
 	viper.BindEnv("logfile")
 	viper.SetDefault("logformat", "json")
 	viper.BindEnv("logformat")
+	viper.SetDefault("loglevel", "info")
+	viper.BindEnv("loglevel")
 	viper.SetDefault("config", "config")
 	viper.BindEnv("config")
 	viper.SetDefault("config_dir", "config.d")

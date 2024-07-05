@@ -58,6 +58,16 @@ func (lrw *loggingResponseWriter) Write(b []byte) (int, error) {
 	return n, err
 }
 
+func isFlagPassed(name string) bool {
+	found := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			found = true
+		}
+	})
+	return found
+}
+
 var version = "undefined"
 
 func main() {
@@ -73,7 +83,7 @@ func main() {
 	flag.Int("p", viper.GetInt("port"), "The port to start on")
 	logFile := flag.String("logfile", viper.GetString("logfile"), "Set log file, default stdout")
 	logFormat := flag.String("logformat", viper.GetString("logformat"), "Set log format to text or json, default json")
-	logLevel := flag.String("loglevel", viper.GetString("loglevel"), "Set log log level, default info")
+	logLevel := flag.String("loglevel", viper.GetString("loglevel"), "Set log level, default info")
 	config := flag.String("config", viper.GetString("config"), "Set configuration file, default config.yaml")
 	usage := flag.Bool("u", false, "Show usage")
 	writeConfig := flag.Bool("default", false, "Write default config named aci_exporter_default_config.yaml. If config.d directory exist all queries will be merged into single file.")
@@ -93,6 +103,7 @@ func main() {
 		fmt.Printf("aci-exporter, version %s\n", version)
 		os.Exit(0)
 	}
+
 	log.SetFormatter(&log.JSONFormatter{})
 	if *logFormat == "text" {
 		log.SetFormatter(&log.TextFormatter{})
@@ -158,6 +169,34 @@ func main() {
 	if err != nil {
 		log.Error("Configuration file not valid - ", err)
 		os.Exit(1)
+	}
+
+	// Check if the arguments for loglevel, logfile and logformat is set on command line
+	// if not use the values from the config file if exists or defaults
+	if !isFlagPassed("loglevel") {
+		level, err := log.ParseLevel(viper.GetString("loglevel"))
+		if err != nil {
+			log.Error(fmt.Sprintf("Not supported log level - %s", err))
+			os.Exit(1)
+		}
+		log.SetLevel(level)
+	}
+
+	if !isFlagPassed("logfile") {
+		if viper.GetString("logfile") != "" {
+			f, err := os.OpenFile(viper.GetString("logfile"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			if err != nil {
+				log.Error(fmt.Sprintf("Error open logfile %s - %s", viper.GetString("logfile"), err))
+				os.Exit(1)
+			}
+			log.SetOutput(f)
+		}
+	}
+
+	if !isFlagPassed("logformat") {
+		if viper.GetString("logFormat") == "text" {
+			log.SetFormatter(&log.TextFormatter{})
+		}
 	}
 
 	// Read all config from config file and directory
