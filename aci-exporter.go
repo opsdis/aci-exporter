@@ -501,6 +501,14 @@ func (h HandlerInit) discovery(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func formatQueries(queries string) string {
+	var trimQueries string
+	trimQueries = strings.ReplaceAll(queries, " ", "")
+	trimQueries = strings.ReplaceAll(trimQueries, "\n", "")
+	trimQueries = strings.ReplaceAll(trimQueries, "\t", "")
+	return trimQueries
+}
+
 func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 
 	openmetrics := false
@@ -511,7 +519,7 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 
 	var node *string
 	fabric := r.URL.Query().Get("target")
-	queries := r.URL.Query().Get("queries")
+	queries := formatQueries(r.URL.Query().Get("queries"))
 	nodeName := r.URL.Query().Get("node")
 	if nodeName != "" {
 		// Check if the nodeName is a valid url if not append https://
