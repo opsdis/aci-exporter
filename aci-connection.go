@@ -76,20 +76,22 @@ type AciConnection struct {
 	Node *string
 }
 
-var connectionCache = make(map[*Fabric]*AciConnection)
+var connectionCache = make(map[string]*AciConnection)
+
+// cacheName returns a unique name for the connection. Every connection is unique per fabric and node with own
+// cache entry
+func cacheName(aciName string, node *string) string {
+	if node == nil {
+		return aciName
+	}
+	return aciName + *node
+}
 
 func newAciConnection(ctx context.Context, fabricConfig *Fabric, node *string) *AciConnection {
-
-	val, ok := connectionCache[fabricConfig]
-	// Determine if this is an apic or node query
+	// Check if we have a connection in the cache
+	val, ok := connectionCache[cacheName(fabricConfig.AciName, node)]
 	if ok {
-		if node == nil {
-			val.Node = nil
-			return val
-		} else {
-			val.Node = node
-			return val
-		}
+		return val
 	}
 
 	var httpClient = HTTPClient{
@@ -118,8 +120,8 @@ func newAciConnection(ctx context.Context, fabricConfig *Fabric, node *string) *
 		Client:           *httpClient,
 		Node:             node,
 	}
-	connectionCache[fabricConfig] = con
-	return connectionCache[fabricConfig]
+	connectionCache[cacheName(fabricConfig.AciName, node)] = con
+	return connectionCache[cacheName(fabricConfig.AciName, node)]
 }
 
 // login get the existing token if valid or do a full /login
@@ -280,7 +282,8 @@ func (c *AciConnection) getByClassQuery(class string, query string) (string, err
 		return string(data), nil
 	} else {
 		// A node query
-		data, _, err := c.get(class, fmt.Sprintf("%s/api/class/%s.json%s", *c.Node, class, query))
+		data, _, err := c.get(class, fmt.Sprintf(
+			"%s/api/class/%s.json%s", *c.Node, class, query))
 		if err != nil {
 			log.WithFields(log.Fields{
 				"requestid": c.ctx.Value("requestid"),

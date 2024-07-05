@@ -515,7 +515,7 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 	ctx = context.WithValue(ctx, "fabric", fabric)
-	api := *newAciAPI(ctx, h.AllFabrics[fabric], h.AllQueries, queries, node)
+	api := newAciAPI(ctx, h.AllFabrics[fabric], h.AllQueries, queries, node)
 
 	start := time.Now()
 	aciName, metrics, err := api.CollectMetrics()
