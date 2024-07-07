@@ -391,9 +391,9 @@ func cliQuery(fabric *string, class *string, query *string) string {
 	username := viper.GetString(fmt.Sprintf("fabrics.%s.username", *fabric))
 	password := viper.GetString(fmt.Sprintf("fabrics.%s.password", *fabric))
 	apicControllers := viper.GetStringSlice(fmt.Sprintf("fabrics.%s.apic", *fabric))
-	aciName := viper.GetString(fmt.Sprintf("fabrics.%s.aci_name", *fabric))
+	//aciName := viper.GetString(fmt.Sprintf("fabrics.%s.aci_name", *fabric))
 
-	fabricConfig := Fabric{Username: username, Password: password, Apic: apicControllers, AciName: aciName}
+	fabricConfig := Fabric{Username: username, Password: password, Apic: apicControllers, AciName: *fabric}
 	ctx := context.TODO()
 	con := *newAciConnection(ctx, &fabricConfig, nil)
 	err = con.login()

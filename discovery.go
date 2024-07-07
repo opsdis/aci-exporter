@@ -61,7 +61,7 @@ func (d Discovery) DoDiscovery() ([]ServiceDiscovery, error) {
 		serviceDiscoveries = append(serviceDiscoveries, fabricSd)
 	} else {
 		for key := range d.Fabrics {
-			aci, _ := d.getInfraCont(d.Fabric)
+			aci, _ := d.getInfraCont(key)
 			topSystems := d.getTopSystem(key)
 			sds, _ := d.parseToDiscoveryFormat(key, topSystems)
 			serviceDiscoveries = append(serviceDiscoveries, sds...)
