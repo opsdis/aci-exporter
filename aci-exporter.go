@@ -261,6 +261,10 @@ func main() {
 		fabricEnv(fabricName, allFabrics)
 	}
 
+	for fabricName, fabric := range allFabrics {
+		fabric.FabricName = fabricName
+	}
+
 	if val, exists := os.LookupEnv(fmt.Sprintf("%s_FABRIC_NAMES", ExporterNameAsEnv())); exists == true && val != "" {
 		for _, fabricName := range strings.Split(val, ",") {
 			fabricEnv(fabricName, allFabrics)
@@ -397,7 +401,7 @@ func cliQuery(fabric *string, class *string, query *string) string {
 		fmt.Printf("Login error %s", err)
 		return ""
 	}
-	defer con.logout()
+	//defer con.logout()
 	var data string
 
 	if len(*query) > 0 && string((*query)[0]) != "?" {
@@ -444,38 +448,6 @@ func (h HandlerInit) discovery(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	/*
-		config := DiscoveryConfiguration{
-			LabelsKeys:   nil,
-			TargetFields: nil,
-			TargetFormat: "",
-		}
-		// Init discovery with fabric specific
-		if h.AllFabrics[fabric].DiscoveryConfig.TargetFields != nil {
-			config.TargetFields = h.AllFabrics[fabric].DiscoveryConfig.TargetFields
-		} else {
-			config.TargetFields = viper.GetStringSlice("service_discovery.target_fields")
-		}
-		if h.AllFabrics[fabric].DiscoveryConfig.LabelsKeys != nil {
-			config.LabelsKeys = h.AllFabrics[fabric].DiscoveryConfig.LabelsKeys
-		} else {
-			config.LabelsKeys = viper.GetStringSlice("service_discovery.labels")
-		}
-		if h.AllFabrics[fabric].DiscoveryConfig.TargetFormat != "" {
-			config.TargetFormat = h.AllFabrics[fabric].DiscoveryConfig.TargetFormat
-		} else {
-			config.TargetFormat = viper.GetString("service_discovery.target_format")
-		}
-
-	*/
-	/*
-		config := DiscoveryConfiguration{
-			LabelsKeys:   viper.GetStringSlice("service_discovery.labels"),
-			TargetFields: viper.GetStringSlice("service_discovery.target_fields"),
-			TargetFormat: viper.GetString("service_discovery.target_format"),
-		}
-
-	*/
 
 	discovery := Discovery{
 		Fabric:  fabric,

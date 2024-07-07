@@ -18,5 +18,6 @@ type Fabric struct {
 	Password        string                 `mapstructure:"password"`
 	Apic            []string               `mapstructure:"apic"`
 	AciName         string                 `mapstructure:"aci_name"`
+	FabricName      string                 `mapstructure:"fabric_name"`
 	DiscoveryConfig DiscoveryConfiguration `mapstructure:"service_discovery"`
 }

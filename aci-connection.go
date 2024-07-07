@@ -89,7 +89,7 @@ func cacheName(aciName string, node *string) string {
 
 func newAciConnection(ctx context.Context, fabricConfig *Fabric, node *string) *AciConnection {
 	// Check if we have a connection in the cache
-	val, ok := connectionCache[cacheName(fabricConfig.AciName, node)]
+	val, ok := connectionCache[cacheName(fabricConfig.FabricName, node)]
 	if ok {
 		return val
 	}
@@ -120,8 +120,8 @@ func newAciConnection(ctx context.Context, fabricConfig *Fabric, node *string) *
 		Client:           *httpClient,
 		Node:             node,
 	}
-	connectionCache[cacheName(fabricConfig.AciName, node)] = con
-	return connectionCache[cacheName(fabricConfig.AciName, node)]
+	connectionCache[cacheName(fabricConfig.FabricName, node)] = con
+	return connectionCache[cacheName(fabricConfig.FabricName, node)]
 }
 
 // login get the existing token if valid or do a full /login
@@ -139,6 +139,14 @@ func (c *AciConnection) login() error {
 func (c *AciConnection) loginProcessing() error {
 	c.tokenMutex.Lock()
 	defer c.tokenMutex.Unlock()
+	if c.Node != nil {
+		return c.nodeLogin()
+	} else {
+		return c.apicLogin()
+	}
+}
+
+func (c *AciConnection) apicLogin() error {
 	for i, controller := range c.fabricConfig.Apic {
 
 		response, status, err := c.doPostJSON("login", fmt.Sprintf("%s%s", controller, c.URLMap["login"]),
@@ -149,23 +157,51 @@ func (c *AciConnection) loginProcessing() error {
 			err = fmt.Errorf("failed to login to %s, try next apic", controller)
 
 			log.WithFields(log.Fields{
-				"requestid": c.ctx.Value("requestid"),
-				"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
-				"token":     fmt.Sprintf("login"),
+				"requestid":  c.ctx.Value("requestid"),
+				"fabric":     fmt.Sprintf("%v", c.ctx.Value("fabric")),
+				"token":      "login",
+				"controller": controller,
 			}).Error(err)
 		} else {
 			c.newToken(response)
 
 			*c.activeController = i
 			log.WithFields(log.Fields{
-				"requestid": c.ctx.Value("requestid"),
-				"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
-				"token":     fmt.Sprintf("login"),
+				"requestid":  c.ctx.Value("requestid"),
+				"fabric":     fmt.Sprintf("%v", c.ctx.Value("fabric")),
+				"token":      "login",
+				"controller": controller,
 			}).Info(fmt.Sprintf("Using apic %s", controller))
 			return nil
 		}
 	}
 	return fmt.Errorf("failed to login to any apic controllers")
+}
+
+func (c *AciConnection) nodeLogin() error {
+	// Node query
+	response, status, err := c.doPostJSON("login", fmt.Sprintf("%s%s", *c.Node, c.URLMap["login"]),
+		[]byte(fmt.Sprintf("{\"aaaUser\":{\"attributes\":{\"name\":\"%s\",\"pwd\":\"%s\"}}}", c.fabricConfig.Username, c.fabricConfig.Password)))
+
+	if err != nil || status != 200 {
+		err = fmt.Errorf("failed to login to %s", *c.Node)
+		log.WithFields(log.Fields{
+			"requestid": c.ctx.Value("requestid"),
+			"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
+			"token":     fmt.Sprintf("login"),
+			"node":      *c.Node,
+		}).Error(err)
+		return fmt.Errorf("failed to login to node")
+	}
+
+	c.newToken(response)
+	log.WithFields(log.Fields{
+		"requestid": c.ctx.Value("requestid"),
+		"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
+		"token":     fmt.Sprintf("login"),
+		"node":      *c.Node,
+	}).Info(fmt.Sprintf("Using node"))
+	return nil
 }
 
 // tokenProcessing if token are valid reuse or try to do a /refresh
