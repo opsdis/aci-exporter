@@ -534,18 +534,19 @@ fabrics:
 All fields returned by the `topSystems` class query can be used as targets and labels.
 
 ## Fabric service discovery 
-The service discovery will also return the discovery of the configured aci-exporter fabrics. This will be entires
+The service discovery will also return the discovery of the configured aci-exporter fabrics. This will be entries
 with the following content:
 
 ```yaml
     {
-        "targets": [
-            "cisco_sandbox"
-        ],
-        "labels": {
-            "__meta_role": "aci_exporter_fabric"
-        }
-    }
+      "targets": [
+        "sydney"
+      ],
+      "labels": {
+        "__meta_fabricDomain": "fab2",
+        "__meta_role": "aci_exporter_fabric"
+      }
+  }
 
 ``` 
 
@@ -592,7 +593,7 @@ discovery and relabeling, see [`prometheus/prometheus_nodes.yml`](prometheus/pro
         # The regex where the string enclosed in the P<xyz> is the label name
         regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/phys-\\[(?P<interface>[^\\]]+)\\]/"
 ```
-  In the above the topology path is part of the response. But for a node based query the same would be:
+In the above the topology path is part of the response. But for a node based query the same would be:
 ```yaml
     labels:
       # The field in the json used to parse the labels from
@@ -758,7 +759,7 @@ To get the metrics in openmetrics format use the header `Accept: application/ope
 Please see the example file prometheus/prometheus.yml.
 
 # Docker 
-The aci-export can be build and run as a docker container and it supports multi-arch.
+The aci-export can be build and run as a docker container, and it supports multi-arch.
 
 ```shell
 docker buildx build . -t regystry/aci-exporter:Version --platform=linux/arm64,linux/amd64 --push
