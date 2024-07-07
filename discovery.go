@@ -45,26 +45,30 @@ type Discovery struct {
 }
 
 func (d Discovery) DoDiscovery() ([]ServiceDiscovery, error) {
-	class := "topSystem"
-	query := ""
+
 	var serviceDiscoveries []ServiceDiscovery
 	var topSystems []TopSystem
 	if d.Fabric != "" {
-		topSystems = d.getTopSystem(class, query, d.Fabric)
+		aci, _ := d.getInfraCont(d.Fabric)
+		topSystems = d.getTopSystem(d.Fabric)
 		sds, _ := d.parseToDiscoveryFormat(d.Fabric, topSystems)
 		serviceDiscoveries = append(serviceDiscoveries, sds...)
+		// Add the fabric as a target
 		fabricSd := NewServiceDiscovery()
 		fabricSd.Targets = append(fabricSd.Targets, d.Fabric)
 		fabricSd.Labels["__meta_role"] = "aci_exporter_fabric"
+		fabricSd.Labels["__meta_fabricDomain"] = aci
 		serviceDiscoveries = append(serviceDiscoveries, fabricSd)
 	} else {
 		for key := range d.Fabrics {
-			topSystems := d.getTopSystem(class, query, key)
+			aci, _ := d.getInfraCont(d.Fabric)
+			topSystems := d.getTopSystem(key)
 			sds, _ := d.parseToDiscoveryFormat(key, topSystems)
 			serviceDiscoveries = append(serviceDiscoveries, sds...)
 			fabricSd := NewServiceDiscovery()
 			fabricSd.Targets = append(fabricSd.Targets, key)
 			fabricSd.Labels["__meta_role"] = "aci_exporter_fabric"
+			fabricSd.Labels["__meta_fabricDomain"] = aci
 			serviceDiscoveries = append(serviceDiscoveries, fabricSd)
 
 		}
@@ -73,7 +77,22 @@ func (d Discovery) DoDiscovery() ([]ServiceDiscovery, error) {
 	return serviceDiscoveries, nil
 }
 
-func (d Discovery) getTopSystem(class string, query string, fabricName string) []TopSystem {
+// p.connection.getByClassQuery("infraCont", "?query-target=self")
+func (d Discovery) getInfraCont(fabricName string) (string, error) {
+	class := "infraCont"
+	query := "?query-target=self"
+	data := cliQuery(&fabricName, &class, &query)
+
+	aciName := gjson.Get(data, "imdata.#.infraCont.attributes.fbDmNm").Array()[0].Str
+
+	if aciName != "" {
+		return aciName, nil
+	}
+	return "", fmt.Errorf("could not determine ACI name")
+}
+func (d Discovery) getTopSystem(fabricName string) []TopSystem {
+	class := "topSystem"
+	query := ""
 	data := cliQuery(&fabricName, &class, &query)
 
 	var topSystems []TopSystem
