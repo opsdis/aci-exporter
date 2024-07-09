@@ -12,6 +12,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -44,13 +45,13 @@ type Discovery struct {
 	Fabrics map[string]*Fabric
 }
 
-func (d Discovery) DoDiscovery() ([]ServiceDiscovery, error) {
+func (d Discovery) DoDiscovery(ctx context.Context) ([]ServiceDiscovery, error) {
 
 	var serviceDiscoveries []ServiceDiscovery
 	var topSystems []TopSystem
 	if d.Fabric != "" {
-		aci, _ := d.getInfraCont(d.Fabric)
-		topSystems = d.getTopSystem(d.Fabric)
+		aci, _ := d.getInfraCont(ctx, d.Fabric)
+		topSystems = d.getTopSystem(ctx, d.Fabric)
 		sds, _ := d.parseToDiscoveryFormat(d.Fabric, topSystems)
 		serviceDiscoveries = append(serviceDiscoveries, sds...)
 		// Add the fabric as a target
@@ -61,8 +62,8 @@ func (d Discovery) DoDiscovery() ([]ServiceDiscovery, error) {
 		serviceDiscoveries = append(serviceDiscoveries, fabricSd)
 	} else {
 		for key := range d.Fabrics {
-			aci, _ := d.getInfraCont(key)
-			topSystems := d.getTopSystem(key)
+			aci, _ := d.getInfraCont(ctx, key)
+			topSystems := d.getTopSystem(ctx, key)
 			sds, _ := d.parseToDiscoveryFormat(key, topSystems)
 			serviceDiscoveries = append(serviceDiscoveries, sds...)
 			fabricSd := NewServiceDiscovery()
@@ -77,11 +78,11 @@ func (d Discovery) DoDiscovery() ([]ServiceDiscovery, error) {
 	return serviceDiscoveries, nil
 }
 
-// p.connection.getByClassQuery("infraCont", "?query-target=self")
-func (d Discovery) getInfraCont(fabricName string) (string, error) {
+// p.connection.GetByClassQuery("infraCont", "?query-target=self")
+func (d Discovery) getInfraCont(ctx context.Context, fabricName string) (string, error) {
 	class := "infraCont"
 	query := "?query-target=self"
-	data := cliQuery(&fabricName, &class, &query)
+	data := cliQuery(ctx, &fabricName, &class, &query)
 
 	aciName := gjson.Get(data, "imdata.#.infraCont.attributes.fbDmNm").Array()[0].Str
 
@@ -90,10 +91,11 @@ func (d Discovery) getInfraCont(fabricName string) (string, error) {
 	}
 	return "", fmt.Errorf("could not determine ACI name")
 }
-func (d Discovery) getTopSystem(fabricName string) []TopSystem {
+
+func (d Discovery) getTopSystem(ctx context.Context, fabricName string) []TopSystem {
 	class := "topSystem"
 	query := ""
-	data := cliQuery(&fabricName, &class, &query)
+	data := cliQuery(ctx, &fabricName, &class, &query)
 
 	var topSystems []TopSystem
 	result := gjson.Get(data, "imdata")

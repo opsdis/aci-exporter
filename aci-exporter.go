@@ -141,7 +141,7 @@ func main() {
 	}
 
 	if *cli {
-		fmt.Printf("%s", cliQuery(fabric, class, query))
+		fmt.Printf("%s", cliQuery(context.TODO(), fabric, class, query))
 		os.Exit(0)
 	}
 
@@ -382,7 +382,7 @@ func fabricEnv(fabricName string, allFabrics map[string]*Fabric) {
 	}
 }
 
-func cliQuery(fabric *string, class *string, query *string) string {
+func cliQuery(ctx context.Context, fabric *string, class *string, query *string) string {
 	err := viper.ReadInConfig()
 	if err != nil {
 		log.Error("Configuration file not valid - ", err)
@@ -394,20 +394,20 @@ func cliQuery(fabric *string, class *string, query *string) string {
 	aciName := viper.GetString(fmt.Sprintf("fabrics.%s.aci_name", *fabric))
 
 	fabricConfig := Fabric{Username: username, Password: password, Apic: apicControllers, FabricName: *fabric, AciName: aciName}
-	ctx := context.TODO()
-	con := *newAciConnection(ctx, &fabricConfig, nil)
-	err = con.login()
+
+	con := newAciConnection(&fabricConfig, nil)
+	err = con.login(ctx)
 	if err != nil {
 		fmt.Printf("Login error %s", err)
 		return ""
 	}
-	//defer con.logout()
+
 	var data string
 
 	if len(*query) > 0 && string((*query)[0]) != "?" {
-		data, err = con.getByClassQuery(*class, fmt.Sprintf("?%s", *query))
+		data, err = con.GetByClassQuery(ctx, *class, fmt.Sprintf("?%s", *query))
 	} else {
-		data, err = con.getByClassQuery(*class, *query)
+		data, err = con.GetByClassQuery(ctx, *class, *query)
 	}
 
 	if err != nil {
@@ -422,6 +422,7 @@ type HandlerInit struct {
 }
 
 func (h HandlerInit) discovery(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 
 	fabric := r.URL.Query().Get("target")
 	if fabric != strings.ToLower(fabric) {
@@ -452,12 +453,11 @@ func (h HandlerInit) discovery(w http.ResponseWriter, r *http.Request) {
 	discovery := Discovery{
 		Fabric:  fabric,
 		Fabrics: h.AllFabrics,
-		//DiscoveryConfig: config,
 	}
 
 	lrw := loggingResponseWriter{ResponseWriter: w}
 
-	serviceDiscoveries, err := discovery.DoDiscovery()
+	serviceDiscoveries, err := discovery.DoDiscovery(ctx)
 	if err != nil {
 		lrw.WriteHeader(http.StatusInternalServerError)
 		return
@@ -611,7 +611,7 @@ func logCall(next http.Handler) http.Handler {
 			"fabric":    r.URL.Query().Get("target"),
 			"status":    lrw.statusCode,
 			"length":    lrw.length,
-			"requestid": requestId,
+			"requestid": ctx.Value("requestid"),
 			"exec_time": time.Since(start).Microseconds(),
 		}).Info("api call")
 	})
@@ -621,13 +621,9 @@ func promMonitor(next http.Handler, ops *prometheus.HistogramVec, endpoint strin
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		start := time.Now()
-
 		lrw := loggingResponseWriter{ResponseWriter: w}
-
 		next.ServeHTTP(&lrw, r) // call original
-
 		response := time.Since(start).Seconds()
-
 		ops.With(prometheus.Labels{"url": endpoint, "status": strconv.Itoa(lrw.statusCode)}).Observe(response)
 	})
 }

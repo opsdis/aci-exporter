@@ -8,8 +8,6 @@
 // GNU General Public License for more details.
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
-//
-// Copyright 2020-2023 Opsdis
 
 package main
 
@@ -66,12 +64,12 @@ func newAciAPI(ctx context.Context, fabricConfig *Fabric, configQueries AllQueri
 
 	api := &aciAPI{
 		ctx:                   ctx,
-		connection:            newAciConnection(ctx, fabricConfig, node),
+		connection:            newAciConnection(fabricConfig, node),
 		metricPrefix:          viper.GetString("prefix"),
 		configQueries:         executeQueries.ClassQueries,
 		configCompoundQueries: executeQueries.CompoundClassQueries,
 		configGroupQueries:    executeQueries.GroupClassQueries,
-		confgBuiltInQueries:   BuiltinQueries{},
+		configBuiltInQueries:  BuiltinQueries{},
 	}
 
 	// Make sure all built in queries are handled
@@ -79,13 +77,13 @@ func newAciAPI(ctx context.Context, fabricConfig *Fabric, configQueries AllQueri
 		// If query parameter queries is used
 		for _, v := range queryArray {
 			if v == "faults" {
-				api.confgBuiltInQueries["faults"] = api.faults
+				api.configBuiltInQueries["faults"] = api.faults
 			}
 			// Add all other builtin with if statements
 		}
 	} else {
 		// If query parameter queries is NOT used, include all
-		api.confgBuiltInQueries["faults"] = api.faults
+		api.configBuiltInQueries["faults"] = api.faults
 	}
 
 	return api
@@ -98,7 +96,7 @@ type aciAPI struct {
 	configQueries         ClassQueries
 	configCompoundQueries CompoundClassQueries
 	configGroupQueries    GroupClassQueries
-	confgBuiltInQueries   BuiltinQueries
+	configBuiltInQueries  BuiltinQueries
 }
 
 // CollectMetrics Gather all aci metrics and return name of the aci fabric, slice of metrics and status of
@@ -107,7 +105,7 @@ func (p aciAPI) CollectMetrics() (string, []MetricDefinition, error) {
 	var metrics []MetricDefinition
 	start := time.Now()
 
-	err := p.connection.login()
+	err := p.connection.login(p.ctx)
 	// defer p.connection.logout()
 
 	if err != nil {
@@ -192,11 +190,11 @@ func (p aciAPI) up(state float64) *MetricDefinition {
 func (p aciAPI) configuredBuiltInMetrics(chall chan []MetricDefinition) {
 	var metricDefinitions []MetricDefinition
 	ch := make(chan []MetricDefinition)
-	for _, fun := range p.confgBuiltInQueries {
+	for _, fun := range p.configBuiltInQueries {
 		go fun(ch)
 	}
 
-	for range p.confgBuiltInQueries {
+	for range p.configBuiltInQueries {
 		metricDefinitions = append(metricDefinitions, <-ch...)
 	}
 
@@ -204,7 +202,7 @@ func (p aciAPI) configuredBuiltInMetrics(chall chan []MetricDefinition) {
 }
 
 func (p aciAPI) faults(ch chan []MetricDefinition) {
-	data, err := p.connection.getByQuery("faults")
+	data, err := p.connection.GetByQuery(p.ctx, "faults")
 	if err != nil {
 		log.WithFields(log.Fields{
 			"requestid": p.ctx.Value("requestid"),
@@ -316,7 +314,7 @@ func (p aciAPI) getAciName() (string, error) {
 		return p.connection.fabricConfig.AciName, nil
 	}
 
-	data, err := p.connection.getByClassQuery("infraCont", "?query-target=self")
+	data, err := p.connection.GetByClassQuery(p.ctx, "infraCont", "?query-target=self")
 
 	if err != nil {
 		return "", err
@@ -354,7 +352,7 @@ func (p aciAPI) getCompoundMetrics(ch chan []MetricDefinition, v *CompoundClassQ
 	var metrics []Metric
 	for _, classLabel := range v.ClassNames {
 		metric := Metric{}
-		data, _ := p.connection.getByClassQuery(classLabel.Class, classLabel.QueryParameter)
+		data, _ := p.connection.GetByClassQuery(p.ctx, classLabel.Class, classLabel.QueryParameter)
 		if classLabel.ValueName == "" {
 			metric.Value = p.toFloat(gjson.Get(data, fmt.Sprintf("imdata.0.%s", v.Metrics[0].ValueName)).Str)
 		} else {
@@ -445,7 +443,7 @@ func (p aciAPI) getGroupClassMetrics(ch chan []MetricDefinition, v GroupClassQue
 func (p aciAPI) getClassMetrics(ch chan []MetricDefinition, v *ClassQuery) {
 
 	var metricDefinitions []MetricDefinition
-	data, err := p.connection.getByClassQuery(v.ClassName, v.QueryParameter)
+	data, err := p.connection.GetByClassQuery(p.ctx, v.ClassName, v.QueryParameter)
 
 	if err != nil {
 		log.WithFields(log.Fields{
