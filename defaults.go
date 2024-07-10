@@ -69,6 +69,14 @@ func SetDefaultValues() {
 	viper.SetDefault("HTTPClient.keepalive", 15)
 	viper.BindEnv("HTTPClient.keepalive")
 
+	// The page size when using paging
+	viper.SetDefault("HTTPClient.pagesize", 1000)
+	viper.BindEnv("HTTPClient.pagesize")
+
+	// If parallel paging is enabled the exporter will fetch multiple pages at the same time
+	viper.SetDefault("HTTPClient.parallel_paging", false)
+	viper.BindEnv("HTTPClient.parallel_paging")
+
 	// This is currently not used
 	viper.SetDefault("HTTPClient.tlshandshaketimeout", 10)
 	viper.BindEnv("HTTPClient.tlshandshaketimeout")

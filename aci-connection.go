@@ -314,7 +314,12 @@ func (c *AciConnection) GetByClassQuery(ctx context.Context, class string, query
 
 func (c *AciConnection) get(ctx context.Context, label string, url string) ([]byte, int, error) {
 	start := time.Now()
-	body, status, err := c.doGet(ctx, url)
+	//body, status, err := c.doGet(ctx, url)
+
+	aciClient := NewAciClient(c.Client, c.Headers, c.token, c.fabricConfig.FabricName, url)
+
+	body, status, err := aciClient.Get(ctx, url)
+
 	responseTime := time.Since(start).Seconds()
 	responseTimeMetric.With(prometheus.Labels{
 		"fabric": fmt.Sprintf("%v", c.fabricConfig.FabricName),

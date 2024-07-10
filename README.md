@@ -665,6 +665,34 @@ The metric output will be like:
 # TYPE aci_uptime_seconds_total counter
 aci_uptime_seconds_total{.......} 98657
 ```
+## Paging support
+For large fabrics the response latency can increase and even the max response items may not be enough. For these large
+fabrics it possible to use paging request where aci-exporter will make each paging request.
+
+Paging is **only** supported if the query has been specified with `order-by=<class>.dn`, like:
+```yaml
+class_queries:                                                                                                                                                                      
+  bgp_peers:                                                                                                                                                                        
+    class_name: bgpPeer                                                                                                                                                             
+    query_parameter: '?order-by=bgpPeer.dn&rsp-subtree=children&rsp-subtree-class=bgpPeerEntry'
+    ....
+```
+
+The paged request is by default done sequential, but parallel paging is supported. To use parallel
+paging the following configuration can be done in the configuration file:
+```yaml
+httpclient:
+  # this is the max and also the default value
+  pagesize: 1000
+  # enable parallel paging, default is false
+  parallel_paging: true
+```
+It is also possible to set the configuration through environment variables:
+```shell
+ACI_EXPORTER_HTTPCLIENT_PAGESIZE=1000
+ACI_EXPORTER_HTTPCLIENT_PARALLEL_PAGING=true
+```
+
 ## Metric output formatting
 There is a number of options to control the output format. The configuration related to the formatting 
 is defined in the `metric_format` section of the configuration file.
