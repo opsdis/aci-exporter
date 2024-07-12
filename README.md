@@ -820,7 +820,7 @@ Just change `ACI_EXPORTER_CONFIG` to use different configuration files.
 Thanks to https://github.com/RavuAlHemio/prometheus_aci_exporter for the inspiration of the configuration of queries. 
 Please check out that project especially if you like to contribute to a Python project.   
 
-Special thanks to @camrossi for his deep understanding of ACI, all valuable ideas and endless testing. 
+Special thanks to @camrossi for his deep understanding of Cisco ACI, all valuable ideas and endless testing. 
 
 # License
 This work is licensed under the GNU GENERAL PUBLIC LICENSE Version 3.
