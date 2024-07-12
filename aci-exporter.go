@@ -199,6 +199,11 @@ func main() {
 		}
 	}
 
+	if !isFlagPassed("config_dir") {
+		dirName := viper.GetString("config_dir")
+		configDirName = &dirName
+	}
+
 	// Read all config from config file and directory
 	var queries = AllQueries{}
 
@@ -508,6 +513,7 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 	} else {
 		node = nil
 	}
+
 	if fabric != strings.ToLower(fabric) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 		w.Header().Set("Content-Length", "0")
