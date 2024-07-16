@@ -50,7 +50,10 @@ func (d Discovery) DoDiscovery(ctx context.Context) ([]ServiceDiscovery, error) 
 	var serviceDiscoveries []ServiceDiscovery
 	var topSystems []TopSystem
 	if d.Fabric != "" {
-		aci, _ := d.getInfraCont(ctx, d.Fabric)
+		aci, err := d.getInfraCont(ctx, d.Fabric)
+		if err != nil {
+			return serviceDiscoveries, err
+		}
 		topSystems = d.getTopSystem(ctx, d.Fabric)
 		sds, _ := d.parseToDiscoveryFormat(d.Fabric, topSystems)
 		serviceDiscoveries = append(serviceDiscoveries, sds...)
@@ -62,7 +65,10 @@ func (d Discovery) DoDiscovery(ctx context.Context) ([]ServiceDiscovery, error) 
 		serviceDiscoveries = append(serviceDiscoveries, fabricSd)
 	} else {
 		for key := range d.Fabrics {
-			aci, _ := d.getInfraCont(ctx, key)
+			aci, err := d.getInfraCont(ctx, key)
+			if err != nil {
+				return serviceDiscoveries, err
+			}
 			topSystems := d.getTopSystem(ctx, key)
 			sds, _ := d.parseToDiscoveryFormat(key, topSystems)
 			serviceDiscoveries = append(serviceDiscoveries, sds...)
@@ -82,8 +88,11 @@ func (d Discovery) DoDiscovery(ctx context.Context) ([]ServiceDiscovery, error) 
 func (d Discovery) getInfraCont(ctx context.Context, fabricName string) (string, error) {
 	class := "infraCont"
 	query := "?query-target=self"
-	data := cliQuery(ctx, &fabricName, &class, &query)
+	data, err := cliQuery(ctx, &fabricName, &class, &query)
 
+	if err != nil {
+		return "", err
+	}
 	aciName := gjson.Get(data, "imdata.#.infraCont.attributes.fbDmNm").Array()[0].Str
 
 	if aciName != "" {
@@ -95,7 +104,14 @@ func (d Discovery) getInfraCont(ctx context.Context, fabricName string) (string,
 func (d Discovery) getTopSystem(ctx context.Context, fabricName string) []TopSystem {
 	class := "topSystem"
 	query := ""
-	data := cliQuery(ctx, &fabricName, &class, &query)
+	data, err := cliQuery(ctx, &fabricName, &class, &query)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"function": "discovery",
+			"fabric":   fabricName,
+		}).Error(err)
+		return nil
+	}
 
 	var topSystems []TopSystem
 	result := gjson.Get(data, "imdata")

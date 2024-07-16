@@ -139,7 +139,12 @@ func main() {
 	}
 
 	if *cli {
-		fmt.Printf("%s", cliQuery(context.TODO(), fabric, class, query))
+		data, err := cliQuery(context.TODO(), fabric, class, query)
+		if err != nil {
+			fmt.Printf("Error %s", err)
+			os.Exit(1)
+		}
+		fmt.Printf("%s", data)
 		os.Exit(0)
 	}
 
@@ -385,11 +390,11 @@ func fabricEnv(fabricName string, allFabrics map[string]*Fabric) {
 	}
 }
 
-func cliQuery(ctx context.Context, fabric *string, class *string, query *string) string {
+func cliQuery(ctx context.Context, fabric *string, class *string, query *string) (string, error) {
 	err := viper.ReadInConfig()
 	if err != nil {
 		log.Error("Configuration file not valid - ", err)
-		os.Exit(1)
+		return "", err
 	}
 	username := viper.GetString(fmt.Sprintf("fabrics.%s.username", *fabric))
 	password := viper.GetString(fmt.Sprintf("fabrics.%s.password", *fabric))
@@ -402,7 +407,7 @@ func cliQuery(ctx context.Context, fabric *string, class *string, query *string)
 	err = con.login(ctx)
 	if err != nil {
 		fmt.Printf("Login error %s", err)
-		return ""
+		return "", err
 	}
 
 	var data string
@@ -415,8 +420,9 @@ func cliQuery(ctx context.Context, fabric *string, class *string, query *string)
 
 	if err != nil {
 		fmt.Printf("Error %s", err)
+		return "", err
 	}
-	return fmt.Sprintf("%s", data)
+	return fmt.Sprintf("%s", data), nil
 }
 
 type HandlerInit struct {
@@ -462,7 +468,7 @@ func (h HandlerInit) discovery(w http.ResponseWriter, r *http.Request) {
 
 	serviceDiscoveries, err := discovery.DoDiscovery(ctx)
 	if err != nil {
-		lrw.WriteHeader(http.StatusInternalServerError)
+		lrw.WriteHeader(http.StatusServiceUnavailable)
 		return
 	}
 
