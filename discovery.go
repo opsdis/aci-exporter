@@ -91,14 +91,37 @@ func (d Discovery) getInfraCont(ctx context.Context, fabricName string) (string,
 	data, err := cliQuery(ctx, &fabricName, &class, &query)
 
 	if err != nil {
+		log.WithFields(log.Fields{
+			"function": "discovery",
+			"class":    class,
+			"fabric":   fabricName,
+		}).Error(err)
 		return "", err
 	}
+
+	if len(gjson.Get(data, "imdata.#.infraCont.attributes.fbDmNm").Array()) == 0 {
+		err = fmt.Errorf("could not determine ACI name, no data returned from APIC")
+		log.WithFields(log.Fields{
+			"function": "discovery",
+			"class":    class,
+			"fabric":   fabricName,
+		}).Error(err)
+		return "", err
+	}
+
 	aciName := gjson.Get(data, "imdata.#.infraCont.attributes.fbDmNm").Array()[0].Str
 
 	if aciName != "" {
 		return aciName, nil
 	}
-	return "", fmt.Errorf("could not determine ACI name")
+
+	err = fmt.Errorf("could not determine ACI name")
+	log.WithFields(log.Fields{
+		"function": "discovery",
+		"class":    class,
+		"fabric":   fabricName,
+	}).Error(err)
+	return "", err
 }
 
 func (d Discovery) getTopSystem(ctx context.Context, fabricName string) []TopSystem {
@@ -108,6 +131,7 @@ func (d Discovery) getTopSystem(ctx context.Context, fabricName string) []TopSys
 	if err != nil {
 		log.WithFields(log.Fields{
 			"function": "discovery",
+			"class":    class,
 			"fabric":   fabricName,
 		}).Error(err)
 		return nil
