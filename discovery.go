@@ -66,22 +66,28 @@ func (d Discovery) DoDiscovery(ctx context.Context) ([]ServiceDiscovery, error) 
 	} else {
 		for key := range d.Fabrics {
 			aci, err := d.getInfraCont(ctx, key)
-			if err != nil {
-				return serviceDiscoveries, err
+			// Instead of breaking the loop in case of an error we just execute the additional queries only if login succeed
+			// This ensure that if we are handling multiple fabrics SD succeed even if one fabric is not reachable
+			if err == nil {
+				topSystems := d.getTopSystem(ctx, key)
+				sds, _ := d.parseToDiscoveryFormat(key, topSystems)
+				serviceDiscoveries = append(serviceDiscoveries, sds...)
+				fabricSd := NewServiceDiscovery()
+				fabricSd.Targets = append(fabricSd.Targets, key)
+				fabricSd.Labels["__meta_role"] = "aci_exporter_fabric"
+				fabricSd.Labels["__meta_fabricDomain"] = aci
+				serviceDiscoveries = append(serviceDiscoveries, fabricSd)	
 			}
-			topSystems := d.getTopSystem(ctx, key)
-			sds, _ := d.parseToDiscoveryFormat(key, topSystems)
-			serviceDiscoveries = append(serviceDiscoveries, sds...)
-			fabricSd := NewServiceDiscovery()
-			fabricSd.Targets = append(fabricSd.Targets, key)
-			fabricSd.Labels["__meta_role"] = "aci_exporter_fabric"
-			fabricSd.Labels["__meta_fabricDomain"] = aci
-			serviceDiscoveries = append(serviceDiscoveries, fabricSd)
-
 		}
 	}
 
-	return serviceDiscoveries, nil
+	
+	if serviceDiscoveries == nil {
+	err := fmt.Errorf("could not login to any Fabric")
+	return serviceDiscoveries, err
+	} else {
+		return serviceDiscoveries, nil
+	}
 }
 
 // p.connection.GetByClassQuery("infraCont", "?query-target=self")

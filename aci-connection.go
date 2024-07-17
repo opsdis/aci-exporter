@@ -171,7 +171,7 @@ func (c *AciConnection) apicLogin(ctx context.Context) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("failed to login to any apic controllers")
+	return fmt.Errorf("failed to login to any apic controllers of fabric %s", c.fabricConfig.FabricName)
 }
 
 func (c *AciConnection) nodeLogin(ctx context.Context) error {
