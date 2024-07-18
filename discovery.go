@@ -67,7 +67,7 @@ func (d Discovery) DoDiscovery(ctx context.Context) ([]ServiceDiscovery, error) 
 		for key := range d.Fabrics {
 			aci, err := d.getInfraCont(ctx, key)
 			if err != nil {
-				return serviceDiscoveries, err
+				continue
 			}
 			topSystems := d.getTopSystem(ctx, key)
 			sds, _ := d.parseToDiscoveryFormat(key, topSystems)

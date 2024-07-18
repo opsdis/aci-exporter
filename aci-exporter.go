@@ -467,7 +467,7 @@ func (h HandlerInit) discovery(w http.ResponseWriter, r *http.Request) {
 	lrw := loggingResponseWriter{ResponseWriter: w}
 
 	serviceDiscoveries, err := discovery.DoDiscovery(ctx)
-	if err != nil {
+	if err != nil || len(serviceDiscoveries) == 0 {
 		lrw.WriteHeader(http.StatusServiceUnavailable)
 		return
 	}
