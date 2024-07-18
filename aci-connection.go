@@ -239,8 +239,7 @@ func (c *AciConnection) tokenProcessing(ctx context.Context) (error, bool) {
 				"requestid":          ctx.Value("requestid"),
 				"fabric":             fmt.Sprintf("%v", c.fabricConfig.FabricName),
 				"token":              fmt.Sprintf("valid"),
-				"valid_time_seconds": c.token.expire - time.Now().Unix(),
-			}).Info("token still valid")
+				"valid_time_seconds": c.token.expire - time.Now().Unix()}).Debug("token still valid")
 			return nil, true
 		}
 	}
