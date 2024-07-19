@@ -23,6 +23,9 @@ The exporter is written in Go and is a single binary with no dependencies.
 
 ![Dashboard example](images/aci_obf.png)
 
+>If you are looking for a complete way to monitor your ACI fabric, including the aci-exporter, Prometheus
+Loki, and Grafana you should check out [ACI Monitor Stack](https://github.com/datacenter/aci-monitoring-stack).
+
 # How to configure queries
  
 The exporter provides three types of query configuration:
