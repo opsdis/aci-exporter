@@ -9,7 +9,7 @@ http based service discovery. Doing direct spine and leaf queries is typical use
 api calls through the apic can put a high load on the apic and result in high response time.
 
 The aci-exporter has been tested on a fabric with more than 500 spines and leafs. To achieve this the exporter use a
-number of key features
+number of key features:
 - Dynamic service discovery of all spines and leafs nodes in the fabric
 - Using node queries to scrape individual spine and leaf nodes
 - Parallel page request when queries include the `order-by` statement 
@@ -47,6 +47,7 @@ There also some so-called built-in queries. These are hard coded queries.
  
 > Example of queries can be found in the `example-config.yaml` file. 
 > Make sure you understand the ACI api before changing or creating new ones.
+
 # High level features
 ## Configuration directory (Since version 0.7.0)
 In addition to configure all queries in the configuration file, they can also be configured in different files in the 
