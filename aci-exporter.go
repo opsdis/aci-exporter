@@ -36,6 +36,15 @@ import (
 	"github.com/spf13/viper"
 )
 
+// Common constants
+const (
+	HeaderAPICCookie         = "APIC-cookie"
+	ErrMsgInvalidStatusCode  = "Not a valid status code"
+	LogFieldRequestID        = "requestid"
+	LogFieldFabric           = "fabric"
+	ACIApiReturnedStatusCode = "ACI api returned %d"
+)
+
 type loggingResponseWriter struct {
 	http.ResponseWriter
 	statusCode int
@@ -281,7 +290,7 @@ func main() {
 
 	for fabricName := range allFabrics {
 		log.WithFields(log.Fields{
-			"fabric": fabricName,
+			LogFieldFabric: fabricName,
 		}).Info("Configured fabric")
 	}
 
@@ -438,7 +447,7 @@ func (h HandlerInit) discovery(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 		w.Header().Set("Content-Length", "0")
 		log.WithFields(log.Fields{
-			"fabric": fabric,
+			LogFieldFabric: fabric,
 		}).Warning("fabric target must be in lower case")
 		lrw := loggingResponseWriter{ResponseWriter: w}
 		lrw.WriteHeader(400)
@@ -451,7 +460,7 @@ func (h HandlerInit) discovery(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 			w.Header().Set("Content-Length", "0")
 			log.WithFields(log.Fields{
-				"fabric": fabric,
+				LogFieldFabric: fabric,
 			}).Warning("fabric target do not exists")
 			lrw := loggingResponseWriter{ResponseWriter: w}
 			lrw.WriteHeader(404)
@@ -522,7 +531,7 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 		w.Header().Set("Content-Length", "0")
 		log.WithFields(log.Fields{
-			"fabric": fabric,
+			LogFieldFabric: fabric,
 		}).Warning("fabric target must be in lower case")
 		lrw := loggingResponseWriter{ResponseWriter: w}
 		lrw.WriteHeader(400)
@@ -535,7 +544,7 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 		w.Header().Set("Content-Length", "0")
 		log.WithFields(log.Fields{
-			"fabric": fabric,
+			LogFieldFabric: fabric,
 		}).Warning("fabric target do not exists")
 		lrw := loggingResponseWriter{ResponseWriter: w}
 		lrw.WriteHeader(404)
@@ -543,15 +552,15 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	ctx = context.WithValue(ctx, "fabric", fabric)
+	ctx = context.WithValue(ctx, LogFieldFabric, fabric)
 	api := newAciAPI(ctx, h.AllFabrics[fabric], h.AllQueries, queries, node)
 
 	start := time.Now()
 	aciName, metrics, err := api.CollectMetrics()
 	log.WithFields(log.Fields{
-		"requestid": ctx.Value("requestid"),
-		"exec_time": time.Since(start).Microseconds(),
-		"fabric":    fmt.Sprintf("%v", ctx.Value("fabric")),
+		LogFieldRequestID: ctx.Value(LogFieldRequestID),
+		"exec_time":       time.Since(start).Microseconds(),
+		LogFieldFabric:    fmt.Sprintf("%v", ctx.Value(LogFieldFabric)),
 	}).Info("total query collection time")
 
 	commonLabels := make(map[string]string)
@@ -564,9 +573,9 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 	var bodyText = Metrics2Prometheus(metrics, api.metricPrefix, commonLabels, metricsFormat)
 
 	log.WithFields(log.Fields{
-		"requestid": ctx.Value("requestid"),
-		"exec_time": time.Since(start).Microseconds(),
-		"fabric":    fmt.Sprintf("%v", ctx.Value("fabric")),
+		LogFieldRequestID: ctx.Value(LogFieldRequestID),
+		"exec_time":       time.Since(start).Microseconds(),
+		LogFieldFabric:    fmt.Sprintf("%v", ctx.Value(LogFieldFabric)),
 	}).Info("metrics to prometheus format")
 
 	if openmetrics {
@@ -611,18 +620,18 @@ func logCall(next http.Handler) http.Handler {
 		lrw := loggingResponseWriter{ResponseWriter: w}
 		requestId := nextRequestID()
 
-		ctx := context.WithValue(r.Context(), "requestid", requestId)
+		ctx := context.WithValue(r.Context(), LogFieldRequestID, requestId)
 		next.ServeHTTP(&lrw, r.WithContext(ctx)) // call original
 
 		w.Header().Set("Content-Length", strconv.Itoa(lrw.length))
 		log.WithFields(log.Fields{
-			"method":    r.Method,
-			"uri":       r.RequestURI,
-			"fabric":    r.URL.Query().Get("target"),
-			"status":    lrw.statusCode,
-			"length":    lrw.length,
-			"requestid": ctx.Value("requestid"),
-			"exec_time": time.Since(start).Microseconds(),
+			"method":          r.Method,
+			"uri":             r.RequestURI,
+			LogFieldFabric:    r.URL.Query().Get("target"),
+			"status":          lrw.statusCode,
+			"length":          lrw.length,
+			LogFieldRequestID: ctx.Value(LogFieldRequestID),
+			"exec_time":       time.Since(start).Microseconds(),
 		}).Info("api call")
 	})
 }

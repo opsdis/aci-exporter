@@ -143,9 +143,9 @@ func (p aciAPI) CollectMetrics() (string, []MetricDefinition, error) {
 	metrics = append(metrics, *p.scrape(end.Seconds()))
 	metrics = append(metrics, *p.up(1.0))
 	log.WithFields(log.Fields{
-		"requestid": p.ctx.Value("requestid"),
-		"exec_time": end.Microseconds(),
-		"fabric":    fmt.Sprintf("%v", p.ctx.Value("fabric")),
+		LogFieldRequestID: p.ctx.Value(LogFieldRequestID),
+		"exec_time":       end.Microseconds(),
+		LogFieldFabric:    fmt.Sprintf("%v", p.ctx.Value(LogFieldFabric)),
 	}).Info("total scrape time ")
 	return aciName, metrics, nil
 }
@@ -205,8 +205,8 @@ func (p aciAPI) faults(ch chan []MetricDefinition) {
 	data, err := p.connection.GetByQuery(p.ctx, "faults")
 	if err != nil {
 		log.WithFields(log.Fields{
-			"requestid": p.ctx.Value("requestid"),
-			"fabric":    fmt.Sprintf("%v", p.ctx.Value("fabric")),
+			LogFieldRequestID: p.ctx.Value(LogFieldRequestID),
+			LogFieldFabric:    fmt.Sprintf("%v", p.ctx.Value(LogFieldFabric)),
 		}).Error("faults not supported", err)
 		ch <- nil
 		return
@@ -447,8 +447,8 @@ func (p aciAPI) getClassMetrics(ch chan []MetricDefinition, v *ClassQuery) {
 
 	if err != nil {
 		log.WithFields(log.Fields{
-			"requestid": p.ctx.Value("requestid"),
-			"fabric":    fmt.Sprintf("%v", p.ctx.Value("fabric")),
+			LogFieldRequestID: p.ctx.Value(LogFieldRequestID),
+			LogFieldFabric:    fmt.Sprintf("%v", p.ctx.Value(LogFieldFabric)),
 		}).Error(fmt.Sprintf("%s not supported", v.ClassName), err)
 		ch <- nil
 		return

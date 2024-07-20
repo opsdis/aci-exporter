@@ -70,8 +70,8 @@ func (acs *AciClientSequential) Get(ctx context.Context, url string) ([]byte, in
 	req, err := http.NewRequest("GET", url, bytes.NewBuffer([]byte{}))
 	if err != nil {
 		log.WithFields(log.Fields{
-			"requestid": ctx.Value("requestid"),
-			"fabric":    fmt.Sprintf("%v", acs.FabricName),
+			LogFieldRequestID: ctx.Value(LogFieldRequestID),
+			LogFieldFabric:    fmt.Sprintf("%v", acs.FabricName),
 		}).Error(err)
 		return nil, 0, err
 	}
@@ -80,7 +80,7 @@ func (acs *AciClientSequential) Get(ctx context.Context, url string) ([]byte, in
 	}
 
 	cookie := http.Cookie{
-		Name:       "APIC-cookie",
+		Name:       HeaderAPICCookie,
 		Value:      acs.Token.token,
 		Path:       "",
 		Domain:     "",
@@ -99,8 +99,8 @@ func (acs *AciClientSequential) Get(ctx context.Context, url string) ([]byte, in
 	resp, err := acs.Client.Do(req)
 	if err != nil {
 		log.WithFields(log.Fields{
-			"requestid": ctx.Value("requestid"),
-			"fabric":    fmt.Sprintf("%v", acs.FabricName),
+			LogFieldRequestID: ctx.Value(LogFieldRequestID),
+			LogFieldFabric:    fmt.Sprintf("%v", acs.FabricName),
 		}).Error(err)
 		return nil, 0, err
 	}
@@ -111,15 +111,15 @@ func (acs *AciClientSequential) Get(ctx context.Context, url string) ([]byte, in
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
 			log.WithFields(log.Fields{
-				"requestid": ctx.Value("requestid"),
-				"fabric":    fmt.Sprintf("%v", acs.FabricName),
+				LogFieldRequestID: ctx.Value(LogFieldRequestID),
+				LogFieldFabric:    fmt.Sprintf("%v", acs.FabricName),
 			}).Error(err)
 			return nil, resp.StatusCode, err
 		}
 
 		return bodyBytes, resp.StatusCode, nil
 	}
-	return nil, resp.StatusCode, fmt.Errorf("ACI api returned %d", resp.StatusCode)
+	return nil, resp.StatusCode, fmt.Errorf(ACIApiReturnedStatusCode, resp.StatusCode)
 }
 
 type ACIResponse struct {
@@ -187,8 +187,8 @@ func (acsp *AciClientSequentialPage) getPage(ctx context.Context, url string, pa
 	req, err := http.NewRequest("GET", fmt.Sprintf(pagedUrl, url, acsp.PageSize, page), bytes.NewBuffer([]byte{}))
 	if err != nil {
 		log.WithFields(log.Fields{
-			"requestid": ctx.Value("requestid"),
-			"fabric":    fmt.Sprintf("%v", acsp.FabricName),
+			LogFieldRequestID: ctx.Value(LogFieldRequestID),
+			LogFieldFabric:    fmt.Sprintf("%v", acsp.FabricName),
 		}).Error(err)
 		return nil, 0, err
 	}
@@ -197,7 +197,7 @@ func (acsp *AciClientSequentialPage) getPage(ctx context.Context, url string, pa
 	}
 
 	cookie := http.Cookie{
-		Name:       "APIC-cookie",
+		Name:       HeaderAPICCookie,
 		Value:      acsp.Token.token,
 		Path:       "",
 		Domain:     "",
@@ -216,8 +216,8 @@ func (acsp *AciClientSequentialPage) getPage(ctx context.Context, url string, pa
 	resp, err := acsp.Client.Do(req)
 	if err != nil {
 		log.WithFields(log.Fields{
-			"requestid": ctx.Value("requestid"),
-			"fabric":    fmt.Sprintf("%v", acsp.FabricName),
+			LogFieldRequestID: ctx.Value(LogFieldRequestID),
+			LogFieldFabric:    fmt.Sprintf("%v", acsp.FabricName),
 		}).Error(err)
 		return nil, 0, err
 	}
@@ -226,18 +226,18 @@ func (acsp *AciClientSequentialPage) getPage(ctx context.Context, url string, pa
 
 	if resp.StatusCode != http.StatusOK {
 		log.WithFields(log.Fields{
-			"requestid": ctx.Value("requestid"),
-			"fabric":    fmt.Sprintf("%v", acsp.FabricName),
-			"status":    resp.StatusCode,
-		}).Error("Not a valid status code")
-		return nil, resp.StatusCode, fmt.Errorf("ACI api returned %d", resp.StatusCode)
+			LogFieldRequestID: ctx.Value(LogFieldRequestID),
+			LogFieldFabric:    fmt.Sprintf("%v", acsp.FabricName),
+			"status":          resp.StatusCode,
+		}).Error(ErrMsgInvalidStatusCode)
+		return nil, resp.StatusCode, fmt.Errorf(ACIApiReturnedStatusCode, resp.StatusCode)
 	}
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.WithFields(log.Fields{
-			"requestid": ctx.Value("requestid"),
-			"fabric":    fmt.Sprintf("%v", acsp.FabricName),
+			LogFieldRequestID: ctx.Value(LogFieldRequestID),
+			LogFieldFabric:    fmt.Sprintf("%v", acsp.FabricName),
 		}).Error(err)
 		return nil, resp.StatusCode, err
 	}
@@ -301,8 +301,8 @@ func (acpp *AciClientParallelPage) getPage(ctx context.Context, url string, page
 	req, err := http.NewRequest("GET", fmt.Sprintf(pagedUrl, url, acpp.PageSize, page), bytes.NewBuffer([]byte{}))
 	if err != nil {
 		log.WithFields(log.Fields{
-			"requestid": ctx.Value("requestid"),
-			"fabric":    fmt.Sprintf("%v", acpp.FabricName),
+			LogFieldRequestID: ctx.Value(LogFieldRequestID),
+			LogFieldFabric:    fmt.Sprintf("%v", acpp.FabricName),
 		}).Error(err)
 		return nil, 0, err
 	}
@@ -311,7 +311,7 @@ func (acpp *AciClientParallelPage) getPage(ctx context.Context, url string, page
 	}
 
 	cookie := http.Cookie{
-		Name:       "APIC-cookie",
+		Name:       HeaderAPICCookie,
 		Value:      acpp.Token.token,
 		Path:       "",
 		Domain:     "",
@@ -330,8 +330,8 @@ func (acpp *AciClientParallelPage) getPage(ctx context.Context, url string, page
 	resp, err := acpp.Client.Do(req)
 	if err != nil {
 		log.WithFields(log.Fields{
-			"requestid": ctx.Value("requestid"),
-			"fabric":    fmt.Sprintf("%v", acpp.FabricName),
+			LogFieldRequestID: ctx.Value(LogFieldRequestID),
+			LogFieldFabric:    fmt.Sprintf("%v", acpp.FabricName),
 		}).Error(err)
 		return nil, 0, err
 	}
@@ -340,18 +340,18 @@ func (acpp *AciClientParallelPage) getPage(ctx context.Context, url string, page
 
 	if resp.StatusCode != http.StatusOK {
 		log.WithFields(log.Fields{
-			"requestid": ctx.Value("requestid"),
-			"fabric":    fmt.Sprintf("%v", acpp.FabricName),
-			"status":    resp.StatusCode,
-		}).Error("Not a valid status code")
-		return nil, resp.StatusCode, fmt.Errorf("ACI api returned %d", resp.StatusCode)
+			LogFieldRequestID: ctx.Value(LogFieldRequestID),
+			LogFieldFabric:    fmt.Sprintf("%v", acpp.FabricName),
+			"status":          resp.StatusCode,
+		}).Error(ErrMsgInvalidStatusCode)
+		return nil, resp.StatusCode, fmt.Errorf(ACIApiReturnedStatusCode, resp.StatusCode)
 	}
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.WithFields(log.Fields{
-			"requestid": ctx.Value("requestid"),
-			"fabric":    fmt.Sprintf("%v", acpp.FabricName),
+			LogFieldRequestID: ctx.Value(LogFieldRequestID),
+			LogFieldFabric:    fmt.Sprintf("%v", acpp.FabricName),
 		}).Error(err)
 		return nil, resp.StatusCode, err
 	}
@@ -367,8 +367,8 @@ func (acpp *AciClientParallelPage) getParallelPage(ctx context.Context, url stri
 	req, err := http.NewRequest("GET", fmt.Sprintf(pagedUrl, url, acpp.PageSize, page), bytes.NewBuffer([]byte{}))
 	if err != nil {
 		log.WithFields(log.Fields{
-			"requestid": ctx.Value("requestid"),
-			"fabric":    fmt.Sprintf("%v", acpp.FabricName),
+			LogFieldRequestID: ctx.Value(LogFieldRequestID),
+			LogFieldFabric:    fmt.Sprintf("%v", acpp.FabricName),
 		}).Error(err)
 		ch <- aciResponse
 		return
@@ -378,7 +378,7 @@ func (acpp *AciClientParallelPage) getParallelPage(ctx context.Context, url stri
 	}
 
 	cookie := http.Cookie{
-		Name:       "APIC-cookie",
+		Name:       HeaderAPICCookie,
 		Value:      acpp.Token.token,
 		Path:       "",
 		Domain:     "",
@@ -397,8 +397,8 @@ func (acpp *AciClientParallelPage) getParallelPage(ctx context.Context, url stri
 	resp, err := acpp.Client.Do(req)
 	if err != nil {
 		log.WithFields(log.Fields{
-			"requestid": ctx.Value("requestid"),
-			"fabric":    fmt.Sprintf("%v", acpp.FabricName),
+			LogFieldRequestID: ctx.Value(LogFieldRequestID),
+			LogFieldFabric:    fmt.Sprintf("%v", acpp.FabricName),
 		}).Error(err)
 		ch <- aciResponse
 		return
@@ -408,10 +408,10 @@ func (acpp *AciClientParallelPage) getParallelPage(ctx context.Context, url stri
 
 	if resp.StatusCode != http.StatusOK {
 		log.WithFields(log.Fields{
-			"requestid": ctx.Value("requestid"),
-			"fabric":    fmt.Sprintf("%v", acpp.FabricName),
-			"status":    resp.StatusCode,
-		}).Error("Not a valid status code")
+			LogFieldRequestID: ctx.Value(LogFieldRequestID),
+			LogFieldFabric:    fmt.Sprintf("%v", acpp.FabricName),
+			"status":          resp.StatusCode,
+		}).Error(ErrMsgInvalidStatusCode)
 		ch <- aciResponse
 		return
 	}
@@ -419,8 +419,8 @@ func (acpp *AciClientParallelPage) getParallelPage(ctx context.Context, url stri
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.WithFields(log.Fields{
-			"requestid": ctx.Value("requestid"),
-			"fabric":    fmt.Sprintf("%v", acpp.FabricName),
+			LogFieldRequestID: ctx.Value(LogFieldRequestID),
+			LogFieldFabric:    fmt.Sprintf("%v", acpp.FabricName),
 		}).Error(err)
 		ch <- aciResponse
 		return
