@@ -42,6 +42,7 @@ const (
 	ErrMsgInvalidStatusCode  = "Not a valid status code"
 	LogFieldRequestID        = "requestid"
 	LogFieldFabric           = "fabric"
+	LogFieldExecTime         = "exec_time"
 	ACIApiReturnedStatusCode = "ACI api returned %d"
 )
 
@@ -559,7 +560,7 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 	aciName, metrics, err := api.CollectMetrics()
 	log.WithFields(log.Fields{
 		LogFieldRequestID: ctx.Value(LogFieldRequestID),
-		"exec_time":       time.Since(start).Microseconds(),
+		LogFieldExecTime:  time.Since(start).Microseconds(),
 		LogFieldFabric:    fmt.Sprintf("%v", ctx.Value(LogFieldFabric)),
 	}).Info("total query collection time")
 
@@ -574,7 +575,7 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 
 	log.WithFields(log.Fields{
 		LogFieldRequestID: ctx.Value(LogFieldRequestID),
-		"exec_time":       time.Since(start).Microseconds(),
+		LogFieldExecTime:  time.Since(start).Microseconds(),
 		LogFieldFabric:    fmt.Sprintf("%v", ctx.Value(LogFieldFabric)),
 	}).Info("metrics to prometheus format")
 
@@ -631,7 +632,7 @@ func logCall(next http.Handler) http.Handler {
 			"status":          lrw.statusCode,
 			"length":          lrw.length,
 			LogFieldRequestID: ctx.Value(LogFieldRequestID),
-			"exec_time":       time.Since(start).Microseconds(),
+			LogFieldExecTime:  time.Since(start).Microseconds(),
 		}).Info("api call")
 	})
 }

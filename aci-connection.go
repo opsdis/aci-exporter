@@ -333,7 +333,7 @@ func (c *AciConnection) get(ctx context.Context, label string, url string) ([]by
 		"status":          status,
 		"length":          len(body),
 		LogFieldRequestID: ctx.Value(LogFieldRequestID),
-		"exec_time":       time.Since(start).Microseconds(),
+		LogFieldExecTime:  time.Since(start).Microseconds(),
 		LogFieldFabric:    fmt.Sprintf("%v", c.fabricConfig.FabricName),
 	}).Info("api call fabric")
 	return body, status, err
@@ -436,7 +436,7 @@ func (c *AciConnection) doPostJSON(ctx context.Context, label string, url string
 		"uri":             url,
 		"status":          status,
 		LogFieldRequestID: ctx.Value(LogFieldRequestID),
-		"exec_time":       time.Since(start).Microseconds(),
+		LogFieldExecTime:  time.Since(start).Microseconds(),
 		LogFieldFabric:    fmt.Sprintf("%v", c.fabricConfig.FabricName),
 	}).Info("api call fabric")
 

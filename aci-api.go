@@ -144,7 +144,7 @@ func (p aciAPI) CollectMetrics() (string, []MetricDefinition, error) {
 	metrics = append(metrics, *p.up(1.0))
 	log.WithFields(log.Fields{
 		LogFieldRequestID: p.ctx.Value(LogFieldRequestID),
-		"exec_time":       end.Microseconds(),
+		LogFieldExecTime:  end.Microseconds(),
 		LogFieldFabric:    fmt.Sprintf("%v", p.ctx.Value(LogFieldFabric)),
 	}).Info("total scrape time ")
 	return aciName, metrics, nil
