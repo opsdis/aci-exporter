@@ -664,7 +664,7 @@ The metrics created by the aci-exporter is controlled by the following attribute
 - `name` the name of the metric
 - `type` the type of the metric, if not set it will default to gauge. If the type is a counter the metric name will be
 postfix with `_total`
-- `unit` a base unit like bytes, seconds etc. If defined the metrics name will be postfixed with the unit
+- `unit` a base unit like bytes, seconds etc. If defined the metrics name will have postfix with the unit
 - `help` the description text of the metrics, if not set it will default to `Missing description` 
 
 With the following settings:
