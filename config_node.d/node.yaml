@@ -1,0 +1,311 @@
+class_queries:
+  node_cpu:
+    class_name: procSysCPU5min
+    metrics:
+      - name: node_cpu_user
+        value_name: procSysCPU5min.attributes.userLast
+        type: "gauge"
+        unit: "ratio"
+        help: "Returns the user space cpu load of a fabric node"
+        # Recalculate the metrics value. The expression support simple math expressions - https://github.com/Knetic/govaluate
+        # The name must be value.
+        # This example recalculate percentage like 90 to 0.9
+        value_calculation: "value / 100"
+      - name: node_cpu_kernel
+        value_name: procSysCPU5min.attributes.kernelLast
+        type: "gauge"
+        unit: "ratio"
+        help: "Returns the kernel space cpu load of a fabric node"
+        value_calculation: "value / 100"
+    labels:
+      - property_name: procSysCPU5min.attributes.dn
+        regex: "^sys/procsys/CDprocSysCPU5min"
+
+  node_memory:
+    class_name: procSysMem5min
+    metrics:
+      - name: node_memory_used
+        value_name: procSysMem5min.attributes.usedLast
+        type: "gauge"
+        unit: "bytes"
+        help: "Returns the used memory of a fabric node"
+      - name: node_memory_free
+        value_name: procSysMem5min.attributes.freeLast
+        type: "gauge"
+        unit: "bytes"
+        help: "Returns the kernel space cpu load of a fabric node"
+    labels:
+      - property_name: procSysMem5min.attributes.dn
+        regex: "^sys/procsys/CDprocSysMem5min"
+
+  node_temperature_sup:
+    class_name: eqptSensor
+    query_parameter: '?query-target-filter=wcard(eqptSensor.dn,"sup")'
+    metrics:
+      - name: node_temperature
+        value_name: eqptSensor.attributes.value
+        type: "gauge"
+        help: "Returns the temperature by sensor of a fabric node"
+    labels:
+      - property_name: eqptSensor.attributes.dn
+        regex: "^sys/ch/supslot-(?P<supslotid>[1-9][0-9]*)/sup/sensor-(?P<sensorid>[1-9][0-9]*)"
+
+  node_temperature_board:
+    class_name: eqptSensor
+    query_parameter: '?query-target-filter=wcard(eqptSensor.dn,"bslot")'
+    metrics:
+      - name: node_temperature
+        value_name: eqptSensor.attributes.value
+        type: "gauge"
+        help: "Returns the temperature by sensor of a fabric node"
+    labels:
+      - property_name: eqptSensor.attributes.dn
+        regex: "^sys/ch/bslot/board/sensor-(?P<sensorid>[1-9][0-9]*)"
+
+  fru_power_usage:
+    class_name: eqptFruPower5min
+    metrics:
+      - name: fru_power_drawn_avg
+        value_name: eqptFruPower5min.attributes.drawnAvg
+        type: gauge
+      - name: fru_power_drawn_last
+        value_name: eqptFruPower5min.attributes.drawnLast
+        type: gauge
+      - name: fru_power_drawn_max
+        value_name: eqptFruPower5min.attributes.drawnMax
+        type: gauge
+      - name: fru_power_drawn_min
+        value_name: eqptFruPower5min.attributes.drawnMin
+        type: gauge
+    labels:
+      - property_name: eqptFruPower5min.attributes.dn
+        regex: "^sys/ch/(?P<slot>.*[0-9]+)/"
+
+  ps_power_usage:
+    class_name: eqptPsPower5min
+    metrics:
+      - name: psu_power_drawn_avg
+        value_name: eqptPsPower5min.attributes.drawnAvg
+      - name: psu_power_drawn_last
+        value_name: eqptPsPower5min.attributes.drawnLast
+      - name: psu_power_drawn_max
+        value_name: eqptPsPower5min.attributes.drawnMax
+      - name: psu_power_drawn_min
+        value_name: eqptPsPower5min.attributes.drawnMin
+      - name: psu_power_drawn_base
+        value_name: eqptPsPower5min.attributes.drawnTrBase
+      - name: psu_power_drawn_ttl
+        value_name: eqptPsPower5min.attributes.drawnTtl
+      - name: psu_supplied_avg
+        value_name: eqptPsPower5min.attributes.suppliedAvg
+      - name: psu_supplied_last
+        value_name: eqptPsPower5min.attributes.suppliedLast
+      - name: psu_supplied_max
+        value_name: eqptPsPower5min.attributes.suppliedMax
+      - name: psu_supplied_min
+        value_name: eqptPsPower5min.attributes.suppliedMin
+      - name: psu_supplied_base
+        value_name: eqptPsPower5min.attributes.suppliedTrBase
+    labels:
+      - property_name: eqptPsPower5min.attributes.dn
+        regex: "^sys/ch/psuslot-(?P<psuslot>[1-9][0-9]*)/"
+
+  node_scale_profiles:
+    class_name: configprofileEntity
+    metrics:
+      - name: node_bd_capacity
+        value_name: configprofileEntity.attributes.bd
+        type: gauge
+        help: Max number of BDs a node supports
+      - name: node_ipv4_capacity
+        value_name: configprofileEntity.attributes.epIpv4
+        type: gauge
+        help: Max number of IPv4 a node supports
+      - name: node_ipv6_capacity
+        value_name: configprofileEntity.attributes.epIpv6
+        type: gauge
+        help: Max number of IPv6 a node supports
+      - name: node_epg_capacity
+        value_name: configprofileEntity.attributes.epg
+        type: gauge
+        help: Max number of EPGs a node supports
+      - name: node_esg_capacity
+        value_name: configprofileEntity.attributes.esg
+        type: gauge
+        help: Max number of ESG a node supports
+      - name: node_esgIp_capacity
+        value_name: configprofileEntity.attributes.esgIp
+        type: gauge
+        help: Max number of IP Based classification for ESGs a node supports
+      - name: node_esgMac_capacity
+        value_name: configprofileEntity.attributes.esgMac
+        type: gauge
+        help: Max number of MAC Based classification for ESGs a node supports
+      - name: node_lpm_capacity
+        value_name: configprofileEntity.attributes.lpm
+        type: gauge
+        help: Max number of Longest Prefix Match a node supports
+      - name: node_slash128_capacity
+        value_name: configprofileEntity.attributes.slash128
+        type: gauge
+        help: Max number of /128 Routes a node supports
+      - name: node_slash32_capacity
+        value_name: configprofileEntity.attributes.slash32
+        type: gauge
+        help: Max number of /32 Routes a node supports
+      - name: max_proxy_db_capacity
+        value_name: configprofileEntity.attributes.syntheticIp
+        type: gauge
+        help: Max capacity of the proxy_db for each spine, the minimum is the max scale for the whole fabric. Ignore values of 0 as those are leaves
+      - name: node_vrf_capacity
+        value_name: configprofileEntity.attributes.vrf
+        type: gauge
+        help: Max number of VRFs a node supports
+    labels:
+      - property_name: configprofileEntity.attributes.name
+        regex: "^(?P<active_profile>.*)"
+
+  node_active_scale_profile:
+    class_name: topoctrlFwdScaleProf
+    metrics:
+      - name: node_active_scale_profile
+        value_name: topoctrlFwdScaleProf.attributes.modTs
+        # Use the time the profile was applied
+        value_regex_transformation: "(?P<date>.*)"
+        value_calculation: "date"
+    labels:
+      # active_profile "default" is the same as configured_profile "high-policy" this is an inconsistency in the Object model
+      - property_name: topoctrlFwdScaleProf.attributes.profType
+        regex: "^(?P<configured_profile>.*)"
+      - property_name: topoctrlFwdScaleProf.attributes.currentProfile
+        regex: "cfgent-(?P<active_profile>.*)"
+
+  node_tcam_current:
+    class_name: eqptcapacityPolUsage5min
+    metrics:
+      - name: node_policy_cum
+        value_name: eqptcapacityPolUsage5min.attributes.polUsageCum
+        type: "gauge"
+      - name: node_policy_base
+        value_name: eqptcapacityPolUsage5min.attributes.polUsageBase
+        type: "gauge"
+      - name: node_policy_capacity_cum
+        value_name: eqptcapacityPolUsage5min.attributes.polUsageCapCum
+        type: "gauge"
+      - name: node_policy_capacity_base
+        value_name: eqptcapacityPolUsage5min.attributes.polUsageCapBase
+        type: "gauge"
+
+  node_labels_current:
+    class_name: eqptcapacityPGLabelUsage5min
+    metrics:
+      - name: node_labels_cum
+        value_name: eqptcapacityPGLabelUsage5min.attributes.pgLblUsageCum
+        type: "gauge"
+      - name: node_labels_base
+        value_name: eqptcapacityPGLabelUsage5min.attributes.pgLblUsageBase
+        type: "gauge"
+      - name: node_labels_capacity_cum
+        value_name: eqptcapacityPGLabelUsage5min.attributes.pgLblCapCum
+        type: "gauge"
+      - name: node_labels_capacity_base
+        value_name: eqptcapacityPGLabelUsage5min.attributes.pgLblCapBase
+        type: "gauge"
+
+  node_mac_current:
+    class_name: eqptcapacityL2TotalUsage5min
+    metrics:
+      - name: node_mac_current
+        value_name: eqptcapacityL2TotalUsage5min.attributes.totalEpLast
+        type: "gauge"
+      - name: node_mac_capacity
+        value_name: eqptcapacityL2TotalUsage5min.attributes.totalEpCapLast
+        type: "gauge"
+
+  node_ipv4_current:
+    class_name: eqptcapacityL3TotalUsage5min
+    metrics:
+      - name: node_ipv4_current
+        value_name: eqptcapacityL3TotalUsage5min.attributes.v4TotalEpLast
+        type: "gauge"
+
+  node_ipv6_current:
+    class_name: eqptcapacityL3TotalUsage5min
+    metrics:
+      - name: node_ipv6_current
+        value_name: eqptcapacityL3TotalUsage5min.attributes.v6TotalEpLast
+        type: "gauge"
+
+  node_mcast_current:
+    class_name: eqptcapacityMcastUsage5min
+    metrics:
+      - name: node_mcast_cum
+        value_name: eqptcapacityMcastUsage5min.attributes.localEpCum
+        type: "gauge"
+      - name: node_mcast_base
+        value_name: eqptcapacityMcastUsage5min.attributes.localEpBase
+        type: "gauge"
+      - name: node_mcast_capacity_cum
+        value_name: eqptcapacityMcastUsage5min.attributes.localEpCapCum
+        type: "gauge"
+      - name: node_mcast_capacity_base
+        value_name: eqptcapacityMcastUsage5min.attributes.localEpCapBase
+        type: "gauge"
+
+  node_vlan_current:
+    class_name: eqptcapacityVlanUsage5min
+    metrics:
+      - name: node_vlan_cum
+        value_name: eqptcapacityVlanUsage5min.attributes.totalCum
+        type: "gauge"
+      - name: node_vlan_base
+        value_name: eqptcapacityVlanUsage5min.attributes.totalBase
+        type: "gauge"
+      - name: node_vlan_capacity_cum
+        value_name: eqptcapacityVlanUsage5min.attributes.totalCapCum
+        type: "gauge"
+      - name: node_vlan_capacity_base
+        value_name: eqptcapacityVlanUsage5min.attributes.totalCapBase
+        type: "gauge"
+
+  node_lpm_current:
+    class_name: eqptcapacityPrefixEntries5min
+    metrics:
+      - name: node_lpm_current
+        value_name: eqptcapacityPrefixEntries5min.attributes.extNormalizedLast
+        type: "gauge"
+
+  node_slash32_current:
+    class_name: eqptcapacityL3v4Usage325min
+    metrics:
+      - name: node_slash32_cum
+        value_name: eqptcapacityL3v4Usage325min.attributes.v4TotalCum
+        type: "gauge"
+      - name: node_slash32_base
+        value_name: eqptcapacityL3v4Usage325min.attributes.v4TotalBase
+        type: "gauge"
+
+  node_slash128_current:
+    class_name: eqptcapacityL3v6Usage1285min
+    metrics:
+      - name: node_slash128_current
+        value_name: eqptcapacityL3v6Usage1285min.attributes.v6TotalCum
+        type: "gauge"
+      - name: node_slash128_base
+        value_name: eqptcapacityL3v6Usage1285min.attributes.v6TotalBase
+        type: "gauge"
+
+  node_scale_ctx:
+    # The class names are a bit confusing:
+    ## fvEpP: EPGs count
+    ## fvEPSelectorDef / fvMacBdSelectorDef : IP / MAC Based ESG Selector
+    ## l3Dom: VRFs
+    class_name: ctxClassCnt
+    query_parameter: '?rsp-subtree-class=l2BD,fvEpP,l3Dom,fvMacBdSelectorDef,fvEPSelectorDef'
+    metrics:
+      - name: node_scale_ctx
+        value_name: ctxClassCnt.attributes.count
+        type: "gauge"
+    labels:
+      - property_name: ctxClassCnt.attributes.name
+        regex: "^(?P<class>.*)"

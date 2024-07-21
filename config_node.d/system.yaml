@@ -1,0 +1,294 @@
+class_queries:
+  node_top:
+    class_name: topSystem
+    metrics:
+      - name: node_id
+        value_name: topSystem.attributes.id
+        type: "gauge"
+    labels:
+      - property_name: topSystem.attributes.name
+        regex: "^(?P<name>.*)"
+  node_top2:
+    class_name: topSystem
+    metrics:
+      - name: node_id2
+        value_name: topSystem.attributes.id
+        type: "gauge"
+    labels:
+      - property_name: topSystem.attributes.name
+        regex: "^(?P<name>.*)"
+
+  fabric_node_info:
+    # Get all the fabric nodes (Controllers, Spines and Leaves)
+    class_name: fabricNode
+    query_parameter: '?order-by=fabricNode.dn'
+    metrics:
+      - name: fabric_node
+        # In this case we are not looking for a value just the labels for info
+        value_name:
+        type: "gauge"
+        help: "Returns the info of the infrastructure apic node"
+        unit: "info"
+        value_calculation: "1"
+    labels:
+      - property_name: fabricNode.attributes.name
+        regex: "^(?P<name>.*)"
+      - property_name: fabricNode.attributes.address
+        regex: "^(?P<ip>.*)"
+      - property_name: fabricNode.attributes.role
+        regex: "^(?P<role>.*)"
+      - property_name: fabricNode.attributes.adminSt
+        regex: "^(?P<adminstatus>.*)"
+      - property_name: fabricNode.attributes.serial
+        regex: "^(?P<serial>.*)"
+      - property_name: fabricNode.attributes.model
+        regex: "^(?P<model>.*)"
+      - property_name: fabricNode.attributes.version
+        regex: "^(?P<model>.*)"
+      - property_name: fabricNode.attributes.dn
+        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)"
+
+  uptime_topsystem:
+    class_name: topSystem
+    query_parameter: "?rsp-subtree-include=health"
+    metrics:
+      - name: uptime
+        type: counter
+        unit: seconds
+        help: The uptime since boot
+        value_name: topSystem.attributes.systemUpTime
+        value_regex_transformation: "([0-9].*):([0-2][0-9]):([0-6][0-9]):([0-6][0-9])\\..*"
+        value_calculation: "value1 * 86400 + value2 * 3600 + value3 * 60 + value4"
+    labels:
+      - property_name: topSystem.attributes.dn
+        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys"
+      - property_name: topSystem.attributes.state
+        regex: "^(?P<state>.*)"
+      - property_name: topSystem.attributes.oobMgmtAddr
+        regex: "^(?P<oobMgmtAddr>.*)"
+      - property_name: topSystem.attributes.name
+        regex: "^(?P<name>.*)"
+      - property_name: topSystem.attributes.role
+        regex: "^(?P<role>.*)"
+
+  max_capacity:
+    class_name: fvcapRule
+    # Additional query parameters for the class query, must start with ? and be separated by &
+    query_parameter: '?query-target-filter=ne(fvcapRule.userConstraint,"feature-unavailable")'
+    metrics:
+      - name: max_capacity
+        value_name: fvcapRule.attributes.constraint
+        type: gauge
+        help: Returns the max capacity of the fabric
+    labels:
+      - property_name: fvcapRule.attributes.subj
+        regex: "^(?P<class>.*)"
+
+  apic_node_info:
+    class_name: infraWiNode
+    metrics:
+      - name: infra_node
+        # In this case we are not looking for a value just the labels for info
+        value_name:
+        type: "gauge"
+        help: "Returns the info of the apic node"
+        unit: "info"
+        # Since this is an info metrics the value is always 1
+        value_calculation: "1"
+    labels:
+      - property_name: infraWiNode.attributes.nodeName
+        regex: "^(?P<name>.*)"
+      - property_name: infraWiNode.attributes.addr
+        regex: "^(?P<ip>.*)"
+      - property_name: infraWiNode.attributes.health
+        regex: "^(?P<health>.*)"
+      - property_name: infraWiNode.attributes.apicMode
+        regex: "^(?P<apicmode>.*)"
+      - property_name: infraWiNode.attributes.adminSt
+        regex: "^(?P<adminstatus>.*)"
+      - property_name: infraWiNode.attributes.operSt
+        regex: "^(?P<operstatus>.*)"
+      - property_name: infraWiNode.attributes.failoverStatus
+        regex: "^(?P<failoverStatus>.*)"
+      - property_name: infraWiNode.attributes.podId
+        regex: "^(?P<podid>.*)"
+
+compound_queries:
+  object_count:
+    # NOT
+    classnames:
+      - class_name: fvCtx
+        # The label value that will be set to the "labelname: class"
+        label_value: fvCtx
+        query_parameter: '?rsp-subtree-include=count'
+      - class_name: fvCEp
+        label_value: fvCEp
+        query_parameter: '?rsp-subtree-include=count'
+      - class_name: fvCEp
+        label_value: fvCEpIp
+        query_parameter: '?rsp-subtree-include=required,count&rsp-subtree-class=fvIp&rsp-subtree=children'
+      - class_name: fvAEPg
+        label_value: fvAEPg
+        query_parameter: '?rsp-subtree-include=count'
+      - class_name: fvBD
+        label_value: fvBD
+        query_parameter: '?rsp-subtree-include=count'
+      - class_name: fvTenant
+        label_value: fvTenant
+        query_parameter: '?rsp-subtree-include=count'
+      - class_name: vnsCDev
+        label_value: vnsCDev
+        query_parameter: '?rsp-subtree-include=count'
+      - class_name: vnsGraphInst
+        label_value: vnsGraphInst
+        query_parameter: '?rsp-subtree-include=count'
+      - class_name: fvIP
+        label_value: fvIP
+        query_parameter: '?rsp-subtree-include=count'
+      - class_name: fvSyntheticIp
+        label_value: fvSyntheticIp
+        query_parameter: '?rsp-subtree-include=count'
+      - class_name: eqptLC
+        label_value: eqptLC
+        query_parameter: '?rsp-subtree-include=count'
+    labelname: class
+    metrics:
+      - name: object_instances
+        value_name: moCount.attributes.count
+        type: gauge
+        help: Returns the current count of objects for ACI classes
+
+  node_count:
+    classnames:
+      - class_name: topSystem
+        label_value: spine
+        query_parameter: '?query-target-filter=eq(topSystem.role,"spine")&rsp-subtree-include=count'
+      - class_name: topSystem
+        label_value: leaf
+        query_parameter: '?query-target-filter=eq(topSystem.role,"leaf")&rsp-subtree-include=count'
+      - class_name: topSystem
+        label_value: controller
+        query_parameter: '?query-target-filter=eq(topSystem.role,"controller")&rsp-subtree-include=count'
+    labelname: type
+    metrics:
+      - name: nodes
+        value_name: moCount.attributes.count
+        type: gauge
+        help: Returns the current count of nodes
+
+# Group class queries
+group_class_queries:
+  # Gather all different health related metrics
+  health:
+    name: health
+    unit: ratio
+    type: gauge
+    help: Returns health score
+    queries:
+      - node_health:
+        class_name: topSystem
+        query_parameter: "?rsp-subtree-include=health"
+        metrics:
+          - value_name: topSystem.children.@reverse.0.healthInst.attributes.cur
+            value_calculation: "value / 100"
+        labels:
+          - property_name: topSystem.attributes.dn
+            regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys"
+          - property_name: topSystem.attributes.state
+            regex: "^(?P<state>.*)"
+          - property_name: topSystem.attributes.oobMgmtAddr
+            regex: "^(?P<oobMgmtAddr>.*)"
+          - property_name: topSystem.attributes.name
+            regex: "^(?P<name>.*)"
+          - property_name: topSystem.attributes.role
+            regex: "^(?P<role>.*)"
+        # A label for the class query
+        staticlabels:
+          - key: class
+            value: topSystem
+
+      - fabric_health:
+        class_name: fabricHealthTotal
+        query_parameter: '?query-target-filter=wcard(fabricHealthTotal.dn,"topology/.*/health")'
+        metrics:
+          -
+            value_name: fabricHealthTotal.attributes.cur
+            value_calculation: "value / 100"
+        labels:
+          - property_name: fabricHealthTotal.attributes.dn
+            regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/health"
+        staticlabels:
+          - key: class
+            value: fabricHealthTotal
+
+      - contract:
+        class_name: fvCtx
+        query_parameter: '?rsp-subtree-include=health,required'
+        metrics:
+          -
+            value_name: fvCtx.children.[healthInst].attributes.cur
+            value_calculation: "value / 100"
+        labels:
+          - property_name: fvCtx.attributes.dn
+            regex: "^uni/tn-(?P<tenant>.*)/ctx-(?P<ctx>.*)"
+        staticlabels:
+          - key: class
+            value: fvCtx
+
+      - bridge_domain_health_by_label:
+        class_name: fvBD
+        query_parameter: '?rsp-subtree-include=health,required'
+        metrics:
+          -
+            value_name: fvBD.children.[healthInst].attributes.cur
+            value_calculation: "value / 100"
+        labels:
+          - property_name: fvBD.attributes.dn
+            regex: "^uni/tn-(?P<tenant>.*)/BD-(?P<bd>.*)"
+        staticlabels:
+          - key: class
+            value: fvBD
+
+      - tenant:
+        class_name: fvTenant
+        query_parameter: '?rsp-subtree-include=health,required'
+        metrics:
+          -
+            value_name: fvTenant.children.[healthInst].attributes.cur
+            value_calculation: "value / 100"
+        labels:
+          - property_name: fvTenant.attributes.dn
+            regex: "^(?P<tenant>.*)"
+        staticlabels:
+          - key: class
+            value: fvTenant
+
+      - ap:
+        class_name: fvAp
+        query_parameter: '?rsp-subtree-include=health,required'
+        metrics:
+          -
+            value_name: fvAp.children.[healthInst].attributes.cur
+            value_calculation: "value / 100"
+        labels:
+          - property_name: fvAp.attributes.dn
+            regex: "^uni/tn-(?P<tenant>.*)/ap-(?P<app>.*)"
+        staticlabels:
+          - key: class
+            value: fvAp
+
+      - aepg:
+        class_name: fvAEPg
+        query_parameter: '?rsp-subtree-include=health,required'
+        metrics:
+          -
+            value_name: fvAEPg.children.[healthInst].attributes.cur
+            value_calculation: "value / 100"
+        labels:
+          - property_name: fvAEPg.attributes.dn
+            regex: "^uni/tn-(?P<tenant>.*)/ap-(?P<app>.*)/epg-(?P<epg>.*)"
+        staticlabels:
+          - key: class
+            value: fvAEPg
+
+
