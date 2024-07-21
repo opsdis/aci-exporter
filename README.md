@@ -510,6 +510,8 @@ If the endpoint is called without a query parameter, service discovery is done f
 The discovery response can now be used in the prometheus configuration as described in the example file 
 [`prometheus/prometheus_nodes.yml`](prometheus/prometheus_nodes.yml).
 
+> In the directory `config_node.d` there is a selection of queries that works for node based queries.
+
 What the service discovery should return can be highly configurable. This is both related to the targets and labels 
 returned. 
 
@@ -783,8 +785,13 @@ The target is a named fabric in the configuration file.
 There is also possible to run a limited number of queries by using the query parameter `queries`.
 This should be a comma separated list of the query names in the config file. It may also contain built-in query names.
 
+
 ```shell
 curl -s 'http://localhost:9643/probe?target=cisco_sandbox&queries=node_health,faults'
+```
+In addition to queries as a comma separated list, it is also possible to repeat `queries` as a query parameter.
+```shell
+curl -s 'http://localhost:9643/probe?target=cisco_sandbox&queries=node_health&queries=faults'
 ```
 
 ## Run in standalone query mode (beta and may change in future releases)

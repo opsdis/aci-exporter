@@ -17,7 +17,6 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/umisama/go-regexpcache"
@@ -30,37 +29,8 @@ import (
 
 var arrayExtension = regexpcache.MustCompile("^(?P<stage_1>.*)\\.\\[(?P<child_name>.*)\\](?P<stage_2>.*)")
 
-func newAciAPI(ctx context.Context, fabricConfig *Fabric, configQueries AllQueries, queryFilter string, node *string) *aciAPI {
-
-	executeQueries := configQueries
-	queryArray := strings.Split(queryFilter, ",")
-	if queryArray[0] != "" {
-		// If there are some queries named
-		executeQueries.ClassQueries = ClassQueries{}
-		executeQueries.CompoundClassQueries = CompoundClassQueries{}
-		executeQueries.GroupClassQueries = GroupClassQueries{}
-		// Find the named queries for the different type
-		for _, queryName := range queryArray {
-			for configQueryName := range configQueries.ClassQueries {
-				if queryName == configQueryName {
-					executeQueries.ClassQueries[configQueryName] = configQueries.ClassQueries[configQueryName]
-				}
-			}
-			for k := range configQueries.CompoundClassQueries {
-				if queryName == k {
-					executeQueries.CompoundClassQueries[k] = configQueries.CompoundClassQueries[k]
-				}
-			}
-			for k := range configQueries.GroupClassQueries {
-				if queryName == k {
-					executeQueries.GroupClassQueries[k] = configQueries.GroupClassQueries[k]
-				}
-			}
-		}
-	} else {
-		// Use all configured
-		executeQueries = configQueries
-	}
+func newAciAPI(ctx context.Context, fabricConfig *Fabric, configQueries AllQueries, queryArray []string, node *string) *aciAPI {
+	executeQueries := queriesToExecute(configQueries, queryArray)
 
 	api := &aciAPI{
 		ctx:                   ctx,
@@ -73,7 +43,7 @@ func newAciAPI(ctx context.Context, fabricConfig *Fabric, configQueries AllQueri
 	}
 
 	// Make sure all built in queries are handled
-	if queryArray[0] != "" {
+	if queryArray != nil {
 		// If query parameter queries is used
 		for _, v := range queryArray {
 			if v == "faults" {
@@ -97,6 +67,37 @@ type aciAPI struct {
 	configCompoundQueries CompoundClassQueries
 	configGroupQueries    GroupClassQueries
 	configBuiltInQueries  BuiltinQueries
+}
+
+func queriesToExecute(configQueries AllQueries, queryArray []string) AllQueries {
+	if queryArray == nil {
+		// Default is all configured queries to execute
+		return configQueries
+	}
+	executeQueries := AllQueries{}
+	executeQueries.ClassQueries = ClassQueries{}
+	executeQueries.CompoundClassQueries = CompoundClassQueries{}
+	executeQueries.GroupClassQueries = GroupClassQueries{}
+
+	// Find the named queries for the different type
+	for _, queryName := range queryArray {
+		for configQueryName := range configQueries.ClassQueries {
+			if queryName == configQueryName {
+				executeQueries.ClassQueries[configQueryName] = configQueries.ClassQueries[configQueryName]
+			}
+		}
+		for k := range configQueries.CompoundClassQueries {
+			if queryName == k {
+				executeQueries.CompoundClassQueries[k] = configQueries.CompoundClassQueries[k]
+			}
+		}
+		for k := range configQueries.GroupClassQueries {
+			if queryName == k {
+				executeQueries.GroupClassQueries[k] = configQueries.GroupClassQueries[k]
+			}
+		}
+	}
+	return executeQueries
 }
 
 // CollectMetrics Gather all aci metrics and return name of the aci fabric, slice of metrics and status of
@@ -632,16 +633,15 @@ func (p aciAPI) toRatio(value string) float64 {
 func (p aciAPI) toFloat(value string) float64 {
 	rate, err := strconv.ParseFloat(value, 64)
 	if err != nil {
-		// if the value a date time convert to timestamp
+		// if the value is a date time convert to timestamp
 		t, err := time.Parse(time.RFC3339, value)
-		rate = float64(t.Unix())
 		if err != nil {
 			log.WithFields(log.Fields{
 				"value": value,
 			}).Info("could not convert value to float, will return 0.0 ")
 			return 0.0
 		}
-
+		rate = float64(t.Unix())
 	}
 	return rate
 }

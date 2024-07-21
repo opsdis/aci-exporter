@@ -238,15 +238,10 @@ func main() {
 
 	err = viper.UnmarshalKey("qroup_class_queries", &queries.GroupClassQueries)
 	if err != nil {
-		log.Error("Unable to decode compound_queries into struct - ", err)
+		log.Error("Unable to decode qroup_class_queries into struct - ", err)
 		os.Exit(1)
 	}
 
-	err = viper.UnmarshalKey("group_class_queries", &queries.GroupClassQueries)
-	if err != nil {
-		log.Error("Unable to decode compound_queries into struct - ", err)
-		os.Exit(1)
-	}
 	allQueries := AllQueries{
 		ClassQueries:         queries.ClassQueries,
 		CompoundClassQueries: queries.CompoundClassQueries,
@@ -510,11 +505,12 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 
 	var node *string
 	fabric := r.URL.Query().Get("target")
-	queries := formatQueries(r.URL.Query().Get("queries"))
+	queryArray := r.URL.Query()["queries"]
 	nodeName := r.URL.Query().Get("node")
+
 	if nodeName != "" {
 		// Check if the nodeName is a valid url if not append https://
-		if queries == "" {
+		if queryArray == nil {
 			lrw := loggingResponseWriter{ResponseWriter: w}
 			lrw.WriteHeader(400)
 			return
@@ -526,6 +522,16 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 		node = &nodeName
 	} else {
 		node = nil
+	}
+
+	// Handle multiple queries
+	var queries []string
+	for _, queryString := range queryArray {
+		// If the queries query parameter include a comma, split it and add to the queries array
+		querySplit := strings.Split(queryString, ",")
+		for _, query := range querySplit {
+			queries = append(queries, strings.TrimSpace(query))
+		}
 	}
 
 	if fabric != strings.ToLower(fabric) {
