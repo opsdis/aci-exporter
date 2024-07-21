@@ -42,8 +42,13 @@ scrape_configs:
     scrape_timeout: 30s
     metrics_path: /probe
     params:
+      # OBS make sure to specify queries that only works for nodes AND have correct label regex for node based response
       queries:
-        - node_interface_info
+        - interface_info
+        - interface_rx_stats
+        - interface_tx_stats
+        - interface_rx_err_stats
+        - interface_tx_err_stats
 
     http_sd_configs:
       # discovery all fabrics
@@ -79,7 +84,7 @@ scrape_configs:
       - source_labels: [ __meta_fabricDomain ]
         target_label: aci
       - source_labels: [ __meta_id ]
-        target_label: node_id
+        target_label: nodeid
       - source_labels: [ __meta_podId ]
         target_label: podid
       - source_labels: [ __meta_role ]
