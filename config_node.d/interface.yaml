@@ -37,45 +37,6 @@ class_queries:
       # The field in the json used to parse the labels from
       - property_name: ethpmPhysIf.attributes.dn
         # The regex where the string enclosed in the P<xyz> is the label name
-        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/phys-\\[(?P<interface>[^\\]]+)\\]/"
-
-  node_interface_info:
-    # Interface speed and status
-    class_name: ethpmPhysIf
-    metrics:
-      # The name of the metrics without prefix and unit
-      - name: interface_oper_speed
-        value_name: ethpmPhysIf.attributes.operSpeed
-        unit: bps
-        type: gauge
-        help: The current operational speed of the interface, in bits per second.
-        value_transform:
-          'unknown': 0
-          '100M': 100000000
-          '1G': 1000000000
-          '10G': 10000000000
-          '25G': 25000000000
-          '40G': 40000000000
-          '100G': 100000000000
-          '400G': 400000000000
-      - name: interface_oper_state
-        # The field in the json that is used as the metric value, qualified path (gjson) under imdata
-        value_name: ethpmPhysIf.attributes.operSt
-        # Type
-        type: gauge
-        # Help text without prefix of metrics name
-        help: The current operational state of the interface. (0=unknown, 1=down, 2=up, 3=link-up)
-        # A string to float64 transform table of the value
-        value_transform:
-          'unknown': 0
-          'down': 1
-          'up': 2
-          'link-up': 3
-    # The labels to extract as regex
-    labels:
-      # The field in the json used to parse the labels from
-      - property_name: ethpmPhysIf.attributes.dn
-        # The regex where the string enclosed in the P<xyz> is the label name
         regex: "^sys/phys-\\[(?P<interface>[^\\]]+)\\]/"
 
   interface_rx_stats:
@@ -98,7 +59,7 @@ class_queries:
         help: The number of broadcast bytes received on the interface since it was integrated into the fabric.
     labels:
       - property_name: eqptIngrBytes5min.attributes.dn
-        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/(?P<interface_type>[a-z]+)-\\[(?P<interface>[^\\]]+)\\]/"
+        regex: "^sys/(?P<interface_type>[a-z]+)-\\[(?P<interface>[^\\]]+)\\]/"
 
   interface_tx_stats:
     class_name: eqptEgrBytes5min
@@ -120,7 +81,7 @@ class_queries:
         help: The number of broadcast bytes transmitted on the interface since it was integrated into the fabric.
     labels:
       - property_name: eqptEgrBytes5min.attributes.dn
-        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/(?P<interface_type>[a-z]+)-\\[(?P<interface>[^\\]]+)\\]/"
+        regex: "^sys/(?P<interface_type>[a-z]+)-\\[(?P<interface>[^\\]]+)\\]/"
 
   interface_rx_err_stats:
     class_name: eqptIngrDropPkts5min
@@ -155,7 +116,7 @@ class_queries:
           the fabric.
     labels:
       - property_name: eqptIngrDropPkts5min.attributes.dn
-        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/(?P<interface_type>[a-z]+)-\\[(?P<interface>[^\\]]+)\\]/"
+        regex: "^sys/(?P<interface_type>[a-z]+)-\\[(?P<interface>[^\\]]+)\\]/"
 
   interface_tx_err_stats:
     class_name: eqptEgrDropPkts5min
@@ -183,4 +144,4 @@ class_queries:
           fabric.
     labels:
       - property_name: eqptEgrDropPkts5min.attributes.dn
-        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/(?P<interface_type>[a-z]+)-\\[(?P<interface>[^\\]]+)\\]/"
+        regex: "^sys/(?P<interface_type>[a-z]+)-\\[(?P<interface>[^\\]]+)\\]/"

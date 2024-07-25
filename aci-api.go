@@ -8,8 +8,6 @@
 // GNU General Public License for more details.
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
-//
-// Copyright 2020-2023 Opsdis
 
 package main
 
@@ -19,7 +17,6 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/umisama/go-regexpcache"
@@ -32,60 +29,31 @@ import (
 
 var arrayExtension = regexpcache.MustCompile("^(?P<stage_1>.*)\\.\\[(?P<child_name>.*)\\](?P<stage_2>.*)")
 
-func newAciAPI(ctx context.Context, fabricConfig *Fabric, configQueries AllQueries, queryFilter string) *aciAPI {
-
-	executeQueries := configQueries
-	queryArray := strings.Split(queryFilter, ",")
-	if queryArray[0] != "" {
-		// If there are some queries named
-		executeQueries.ClassQueries = ClassQueries{}
-		executeQueries.CompoundClassQueries = CompoundClassQueries{}
-		executeQueries.GroupClassQueries = GroupClassQueries{}
-		// Find the named queries for the different type
-		for _, queryName := range queryArray {
-			for configQueryName := range configQueries.ClassQueries {
-				if queryName == configQueryName {
-					executeQueries.ClassQueries[configQueryName] = configQueries.ClassQueries[configQueryName]
-				}
-			}
-			for k := range configQueries.CompoundClassQueries {
-				if queryName == k {
-					executeQueries.CompoundClassQueries[k] = configQueries.CompoundClassQueries[k]
-				}
-			}
-			for k := range configQueries.GroupClassQueries {
-				if queryName == k {
-					executeQueries.GroupClassQueries[k] = configQueries.GroupClassQueries[k]
-				}
-			}
-		}
-	} else {
-		// Use all configured
-		executeQueries = configQueries
-	}
+func newAciAPI(ctx context.Context, fabricConfig *Fabric, configQueries AllQueries, queryArray []string, node *string) *aciAPI {
+	executeQueries := queriesToExecute(configQueries, queryArray)
 
 	api := &aciAPI{
 		ctx:                   ctx,
-		connection:            newAciConnection(ctx, fabricConfig),
+		connection:            newAciConnection(fabricConfig, node),
 		metricPrefix:          viper.GetString("prefix"),
 		configQueries:         executeQueries.ClassQueries,
 		configCompoundQueries: executeQueries.CompoundClassQueries,
 		configGroupQueries:    executeQueries.GroupClassQueries,
-		confgBuiltInQueries:   BuiltinQueries{},
+		configBuiltInQueries:  BuiltinQueries{},
 	}
 
 	// Make sure all built in queries are handled
-	if queryArray[0] != "" {
+	if queryArray != nil {
 		// If query parameter queries is used
 		for _, v := range queryArray {
 			if v == "faults" {
-				api.confgBuiltInQueries["faults"] = api.faults
+				api.configBuiltInQueries["faults"] = api.faults
 			}
 			// Add all other builtin with if statements
 		}
 	} else {
 		// If query parameter queries is NOT used, include all
-		api.confgBuiltInQueries["faults"] = api.faults
+		api.configBuiltInQueries["faults"] = api.faults
 	}
 
 	return api
@@ -98,7 +66,38 @@ type aciAPI struct {
 	configQueries         ClassQueries
 	configCompoundQueries CompoundClassQueries
 	configGroupQueries    GroupClassQueries
-	confgBuiltInQueries   BuiltinQueries
+	configBuiltInQueries  BuiltinQueries
+}
+
+func queriesToExecute(configQueries AllQueries, queryArray []string) AllQueries {
+	if queryArray == nil {
+		// Default is all configured queries to execute
+		return configQueries
+	}
+	executeQueries := AllQueries{}
+	executeQueries.ClassQueries = ClassQueries{}
+	executeQueries.CompoundClassQueries = CompoundClassQueries{}
+	executeQueries.GroupClassQueries = GroupClassQueries{}
+
+	// Find the named queries for the different type
+	for _, queryName := range queryArray {
+		for configQueryName := range configQueries.ClassQueries {
+			if queryName == configQueryName {
+				executeQueries.ClassQueries[configQueryName] = configQueries.ClassQueries[configQueryName]
+			}
+		}
+		for k := range configQueries.CompoundClassQueries {
+			if queryName == k {
+				executeQueries.CompoundClassQueries[k] = configQueries.CompoundClassQueries[k]
+			}
+		}
+		for k := range configQueries.GroupClassQueries {
+			if queryName == k {
+				executeQueries.GroupClassQueries[k] = configQueries.GroupClassQueries[k]
+			}
+		}
+	}
+	return executeQueries
 }
 
 // CollectMetrics Gather all aci metrics and return name of the aci fabric, slice of metrics and status of
@@ -107,7 +106,7 @@ func (p aciAPI) CollectMetrics() (string, []MetricDefinition, error) {
 	var metrics []MetricDefinition
 	start := time.Now()
 
-	err := p.connection.login()
+	err := p.connection.login(p.ctx)
 	// defer p.connection.logout()
 
 	if err != nil {
@@ -145,9 +144,9 @@ func (p aciAPI) CollectMetrics() (string, []MetricDefinition, error) {
 	metrics = append(metrics, *p.scrape(end.Seconds()))
 	metrics = append(metrics, *p.up(1.0))
 	log.WithFields(log.Fields{
-		"requestid": p.ctx.Value("requestid"),
-		"exec_time": end.Microseconds(),
-		"fabric":    fmt.Sprintf("%v", p.ctx.Value("fabric")),
+		LogFieldRequestID: p.ctx.Value(LogFieldRequestID),
+		LogFieldExecTime:  end.Microseconds(),
+		LogFieldFabric:    fmt.Sprintf("%v", p.ctx.Value(LogFieldFabric)),
 	}).Info("total scrape time ")
 	return aciName, metrics, nil
 }
@@ -192,11 +191,11 @@ func (p aciAPI) up(state float64) *MetricDefinition {
 func (p aciAPI) configuredBuiltInMetrics(chall chan []MetricDefinition) {
 	var metricDefinitions []MetricDefinition
 	ch := make(chan []MetricDefinition)
-	for _, fun := range p.confgBuiltInQueries {
+	for _, fun := range p.configBuiltInQueries {
 		go fun(ch)
 	}
 
-	for range p.confgBuiltInQueries {
+	for range p.configBuiltInQueries {
 		metricDefinitions = append(metricDefinitions, <-ch...)
 	}
 
@@ -204,11 +203,11 @@ func (p aciAPI) configuredBuiltInMetrics(chall chan []MetricDefinition) {
 }
 
 func (p aciAPI) faults(ch chan []MetricDefinition) {
-	data, err := p.connection.getByQuery("faults")
+	data, err := p.connection.GetByQuery(p.ctx, "faults")
 	if err != nil {
 		log.WithFields(log.Fields{
-			"requestid": p.ctx.Value("requestid"),
-			"fabric":    fmt.Sprintf("%v", p.ctx.Value("fabric")),
+			LogFieldRequestID: p.ctx.Value(LogFieldRequestID),
+			LogFieldFabric:    fmt.Sprintf("%v", p.ctx.Value(LogFieldFabric)),
 		}).Error("faults not supported", err)
 		ch <- nil
 		return
@@ -308,11 +307,15 @@ func (p aciAPI) faults(ch chan []MetricDefinition) {
 }
 
 func (p aciAPI) getAciName() (string, error) {
+	// Do not query aci name when query a node
+	if p.connection.Node != nil {
+		return "", nil
+	}
 	if p.connection.fabricConfig.AciName != "" {
 		return p.connection.fabricConfig.AciName, nil
 	}
 
-	data, err := p.connection.getByClassQuery("infraCont", "?query-target=self")
+	data, err := p.connection.GetByClassQuery(p.ctx, "infraCont", "?query-target=self")
 
 	if err != nil {
 		return "", err
@@ -350,7 +353,7 @@ func (p aciAPI) getCompoundMetrics(ch chan []MetricDefinition, v *CompoundClassQ
 	var metrics []Metric
 	for _, classLabel := range v.ClassNames {
 		metric := Metric{}
-		data, _ := p.connection.getByClassQuery(classLabel.Class, classLabel.QueryParameter)
+		data, _ := p.connection.GetByClassQuery(p.ctx, classLabel.Class, classLabel.QueryParameter)
 		if classLabel.ValueName == "" {
 			metric.Value = p.toFloat(gjson.Get(data, fmt.Sprintf("imdata.0.%s", v.Metrics[0].ValueName)).Str)
 		} else {
@@ -441,12 +444,12 @@ func (p aciAPI) getGroupClassMetrics(ch chan []MetricDefinition, v GroupClassQue
 func (p aciAPI) getClassMetrics(ch chan []MetricDefinition, v *ClassQuery) {
 
 	var metricDefinitions []MetricDefinition
-	data, err := p.connection.getByClassQuery(v.ClassName, v.QueryParameter)
+	data, err := p.connection.GetByClassQuery(p.ctx, v.ClassName, v.QueryParameter)
 
 	if err != nil {
 		log.WithFields(log.Fields{
-			"requestid": p.ctx.Value("requestid"),
-			"fabric":    fmt.Sprintf("%v", p.ctx.Value("fabric")),
+			LogFieldRequestID: p.ctx.Value(LogFieldRequestID),
+			LogFieldFabric:    fmt.Sprintf("%v", p.ctx.Value(LogFieldFabric)),
 		}).Error(fmt.Sprintf("%s not supported", v.ClassName), err)
 		ch <- nil
 		return
@@ -630,16 +633,15 @@ func (p aciAPI) toRatio(value string) float64 {
 func (p aciAPI) toFloat(value string) float64 {
 	rate, err := strconv.ParseFloat(value, 64)
 	if err != nil {
-		// if the value a date time convert to timestamp
+		// if the value is a date time convert to timestamp
 		t, err := time.Parse(time.RFC3339, value)
-		rate = float64(t.Unix())
 		if err != nil {
 			log.WithFields(log.Fields{
 				"value": value,
 			}).Info("could not convert value to float, will return 0.0 ")
 			return 0.0
 		}
-
+		rate = float64(t.Unix())
 	}
 	return rate
 }

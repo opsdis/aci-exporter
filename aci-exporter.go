@@ -8,16 +8,16 @@
 // GNU General Public License for more details.
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
-//
-// Copyright 2020-2023 Opsdis
 
 package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"net/http/pprof"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -34,6 +34,16 @@ import (
 	"github.com/segmentio/ksuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
+)
+
+// Common constants
+const (
+	HeaderAPICCookie         = "APIC-cookie"
+	ErrMsgInvalidStatusCode  = "Not a valid status code"
+	LogFieldRequestID        = "requestid"
+	LogFieldFabric           = "fabric"
+	LogFieldExecTime         = "exec_time"
+	ACIApiReturnedStatusCode = "ACI api returned %d"
 )
 
 type loggingResponseWriter struct {
@@ -56,6 +66,16 @@ func (lrw *loggingResponseWriter) Write(b []byte) (int, error) {
 	return n, err
 }
 
+func isFlagPassed(name string) bool {
+	found := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			found = true
+		}
+	})
+	return found
+}
+
 var version = "undefined"
 
 func main() {
@@ -71,7 +91,7 @@ func main() {
 	flag.Int("p", viper.GetInt("port"), "The port to start on")
 	logFile := flag.String("logfile", viper.GetString("logfile"), "Set log file, default stdout")
 	logFormat := flag.String("logformat", viper.GetString("logformat"), "Set log format to text or json, default json")
-	logLevel := flag.String("loglevel", viper.GetString("loglevel"), "Set log log level, default info")
+	logLevel := flag.String("loglevel", viper.GetString("loglevel"), "Set log level, default info")
 	config := flag.String("config", viper.GetString("config"), "Set configuration file, default config.yaml")
 	usage := flag.Bool("u", false, "Show usage")
 	writeConfig := flag.Bool("default", false, "Write default config named aci_exporter_default_config.yaml. If config.d directory exist all queries will be merged into single file.")
@@ -91,6 +111,7 @@ func main() {
 		fmt.Printf("aci-exporter, version %s\n", version)
 		os.Exit(0)
 	}
+
 	log.SetFormatter(&log.JSONFormatter{})
 	if *logFormat == "text" {
 		log.SetFormatter(&log.TextFormatter{})
@@ -128,7 +149,12 @@ func main() {
 	}
 
 	if *cli {
-		fmt.Printf("%s", cliQuery(fabric, class, query))
+		data, err := cliQuery(context.TODO(), fabric, class, query)
+		if err != nil {
+			fmt.Printf("Error %s", err)
+			os.Exit(1)
+		}
+		fmt.Printf("%s", data)
 		os.Exit(0)
 	}
 
@@ -158,6 +184,39 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Check if the arguments for loglevel, logfile and logformat is set on command line
+	// if not use the values from the config file if exists or defaults
+	if !isFlagPassed("loglevel") {
+		level, err := log.ParseLevel(viper.GetString("loglevel"))
+		if err != nil {
+			log.Error(fmt.Sprintf("Not supported log level - %s", err))
+			os.Exit(1)
+		}
+		log.SetLevel(level)
+	}
+
+	if !isFlagPassed("logfile") {
+		if viper.GetString("logfile") != "" {
+			f, err := os.OpenFile(viper.GetString("logfile"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			if err != nil {
+				log.Error(fmt.Sprintf("Error open logfile %s - %s", viper.GetString("logfile"), err))
+				os.Exit(1)
+			}
+			log.SetOutput(f)
+		}
+	}
+
+	if !isFlagPassed("logformat") {
+		if viper.GetString("logFormat") == "text" {
+			log.SetFormatter(&log.TextFormatter{})
+		}
+	}
+
+	if !isFlagPassed("config_dir") {
+		dirName := viper.GetString("config_dir")
+		configDirName = &dirName
+	}
+
 	// Read all config from config file and directory
 	var queries = AllQueries{}
 
@@ -179,21 +238,17 @@ func main() {
 
 	err = viper.UnmarshalKey("qroup_class_queries", &queries.GroupClassQueries)
 	if err != nil {
-		log.Error("Unable to decode compound_queries into struct - ", err)
+		log.Error("Unable to decode qroup_class_queries into struct - ", err)
 		os.Exit(1)
 	}
 
-	err = viper.UnmarshalKey("group_class_queries", &queries.GroupClassQueries)
-	if err != nil {
-		log.Error("Unable to decode compound_queries into struct - ", err)
-		os.Exit(1)
-	}
 	allQueries := AllQueries{
 		ClassQueries:         queries.ClassQueries,
 		CompoundClassQueries: queries.CompoundClassQueries,
 		GroupClassQueries:    queries.GroupClassQueries,
 	}
 
+	// Init all fabrics
 	allFabrics := make(map[string]*Fabric)
 
 	err = viper.UnmarshalKey("fabrics", &allFabrics)
@@ -202,9 +257,25 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Init discovery settings
+	for fabricName := range allFabrics {
+		if allFabrics[fabricName].DiscoveryConfig.TargetFields == nil {
+			allFabrics[fabricName].DiscoveryConfig.TargetFields = viper.GetStringSlice("service_discovery.target_fields")
+		}
+		if allFabrics[fabricName].DiscoveryConfig.LabelsKeys == nil {
+			allFabrics[fabricName].DiscoveryConfig.LabelsKeys = viper.GetStringSlice("service_discovery.labels")
+		}
+		if allFabrics[fabricName].DiscoveryConfig.TargetFormat == "" {
+			allFabrics[fabricName].DiscoveryConfig.TargetFormat = viper.GetString("service_discovery.target_format")
+		}
+	}
 	// Overwrite username or password for APIC by environment variables if set
 	for fabricName := range allFabrics {
 		fabricEnv(fabricName, allFabrics)
+	}
+
+	for fabricName, fabric := range allFabrics {
+		fabric.FabricName = fabricName
 	}
 
 	if val, exists := os.LookupEnv(fmt.Sprintf("%s_FABRIC_NAMES", ExporterNameAsEnv())); exists == true && val != "" {
@@ -215,7 +286,7 @@ func main() {
 
 	for fabricName := range allFabrics {
 		log.WithFields(log.Fields{
-			"fabric": fabricName,
+			LogFieldFabric: fabricName,
 		}).Info("Configured fabric")
 	}
 
@@ -233,6 +304,7 @@ func main() {
 	// Setup handler for aci destinations
 	http.Handle("/probe", logCall(promMonitor(http.HandlerFunc(handler.getMonitorMetrics), responseTime, "/probe")))
 	http.Handle("/alive", logCall(promMonitor(http.HandlerFunc(alive), responseTime, "/alive")))
+	http.Handle("/sd", logCall(promMonitor(http.HandlerFunc(handler.discovery), responseTime, "/sd")))
 
 	// Setup handler for exporter metrics
 	http.Handle("/metrics", promhttp.HandlerFor(
@@ -323,43 +395,104 @@ func fabricEnv(fabricName string, allFabrics map[string]*Fabric) {
 	}
 }
 
-func cliQuery(fabric *string, class *string, query *string) string {
+func cliQuery(ctx context.Context, fabric *string, class *string, query *string) (string, error) {
 	err := viper.ReadInConfig()
 	if err != nil {
 		log.Error("Configuration file not valid - ", err)
-		os.Exit(1)
+		return "", err
 	}
 	username := viper.GetString(fmt.Sprintf("fabrics.%s.username", *fabric))
 	password := viper.GetString(fmt.Sprintf("fabrics.%s.password", *fabric))
 	apicControllers := viper.GetStringSlice(fmt.Sprintf("fabrics.%s.apic", *fabric))
 	aciName := viper.GetString(fmt.Sprintf("fabrics.%s.aci_name", *fabric))
 
-	fabricConfig := Fabric{Username: username, Password: password, Apic: apicControllers, AciName: aciName}
-	ctx := context.TODO()
-	con := *newAciConnection(ctx, &fabricConfig)
-	err = con.login()
+	fabricConfig := Fabric{Username: username, Password: password, Apic: apicControllers, FabricName: *fabric, AciName: aciName}
+
+	con := newAciConnection(&fabricConfig, nil)
+	err = con.login(ctx)
 	if err != nil {
 		fmt.Printf("Login error %s", err)
-		return ""
+		return "", err
 	}
-	defer con.logout()
+
 	var data string
 
-	if string((*query)[0]) != "?" {
-		data, err = con.getByClassQuery(*class, fmt.Sprintf("?%s", *query))
+	if len(*query) > 0 && string((*query)[0]) != "?" {
+		data, err = con.GetByClassQuery(ctx, *class, fmt.Sprintf("?%s", *query))
 	} else {
-		data, err = con.getByClassQuery(*class, *query)
+		data, err = con.GetByClassQuery(ctx, *class, *query)
 	}
 
 	if err != nil {
 		fmt.Printf("Error %s", err)
+		return "", err
 	}
-	return fmt.Sprintf("%s", data)
+	return fmt.Sprintf("%s", data), nil
 }
 
 type HandlerInit struct {
 	AllQueries AllQueries
 	AllFabrics map[string]*Fabric
+}
+
+func (h HandlerInit) discovery(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	fabric := r.URL.Query().Get("target")
+	if fabric != strings.ToLower(fabric) {
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+		w.Header().Set("Content-Length", "0")
+		log.WithFields(log.Fields{
+			LogFieldFabric: fabric,
+		}).Warning("fabric target must be in lower case")
+		lrw := loggingResponseWriter{ResponseWriter: w}
+		lrw.WriteHeader(400)
+		return
+	}
+
+	if fabric != "" {
+		_, ok := h.AllFabrics[fabric]
+		if !ok {
+			w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+			w.Header().Set("Content-Length", "0")
+			log.WithFields(log.Fields{
+				LogFieldFabric: fabric,
+			}).Warning("fabric target do not exists")
+			lrw := loggingResponseWriter{ResponseWriter: w}
+			lrw.WriteHeader(404)
+			return
+		}
+	}
+
+	discovery := Discovery{
+		Fabric:  fabric,
+		Fabrics: h.AllFabrics,
+	}
+
+	lrw := loggingResponseWriter{ResponseWriter: w}
+
+	serviceDiscoveries, err := discovery.DoDiscovery(ctx)
+	if err != nil || len(serviceDiscoveries) == 0 {
+		lrw.WriteHeader(http.StatusServiceUnavailable)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	lrw.WriteHeader(http.StatusOK)
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "    ")
+	if err := enc.Encode(serviceDiscoveries); err != nil {
+		lrw.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+}
+
+func formatQueries(queries string) string {
+	var trimQueries string
+	trimQueries = strings.ReplaceAll(queries, " ", "")
+	trimQueries = strings.ReplaceAll(trimQueries, "\n", "")
+	trimQueries = strings.ReplaceAll(trimQueries, "\t", "")
+	return trimQueries
 }
 
 func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
@@ -370,14 +503,42 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 		openmetrics = true
 	}
 
+	var node *string
 	fabric := r.URL.Query().Get("target")
-	queries := r.URL.Query().Get("queries")
+	queryArray := r.URL.Query()["queries"]
+	nodeName := r.URL.Query().Get("node")
+
+	if nodeName != "" {
+		// Check if the nodeName is a valid url if not append https://
+		if queryArray == nil {
+			lrw := loggingResponseWriter{ResponseWriter: w}
+			lrw.WriteHeader(400)
+			return
+		}
+		_, err := url.ParseRequestURI(nodeName)
+		if err != nil {
+			nodeName = fmt.Sprintf("https://%s", nodeName)
+		}
+		node = &nodeName
+	} else {
+		node = nil
+	}
+
+	// Handle multiple queries
+	var queries []string
+	for _, queryString := range queryArray {
+		// If the queries query parameter include a comma, split it and add to the queries array
+		querySplit := strings.Split(queryString, ",")
+		for _, query := range querySplit {
+			queries = append(queries, strings.TrimSpace(query))
+		}
+	}
 
 	if fabric != strings.ToLower(fabric) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 		w.Header().Set("Content-Length", "0")
 		log.WithFields(log.Fields{
-			"fabric": fabric,
+			LogFieldFabric: fabric,
 		}).Warning("fabric target must be in lower case")
 		lrw := loggingResponseWriter{ResponseWriter: w}
 		lrw.WriteHeader(400)
@@ -390,7 +551,7 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 		w.Header().Set("Content-Length", "0")
 		log.WithFields(log.Fields{
-			"fabric": fabric,
+			LogFieldFabric: fabric,
 		}).Warning("fabric target do not exists")
 		lrw := loggingResponseWriter{ResponseWriter: w}
 		lrw.WriteHeader(404)
@@ -398,15 +559,15 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	ctx = context.WithValue(ctx, "fabric", fabric)
-	api := *newAciAPI(ctx, h.AllFabrics[fabric], h.AllQueries, queries)
+	ctx = context.WithValue(ctx, LogFieldFabric, fabric)
+	api := newAciAPI(ctx, h.AllFabrics[fabric], h.AllQueries, queries, node)
 
 	start := time.Now()
 	aciName, metrics, err := api.CollectMetrics()
 	log.WithFields(log.Fields{
-		"requestid": ctx.Value("requestid"),
-		"exec_time": time.Since(start).Microseconds(),
-		"fabric":    fmt.Sprintf("%v", ctx.Value("fabric")),
+		LogFieldRequestID: ctx.Value(LogFieldRequestID),
+		LogFieldExecTime:  time.Since(start).Microseconds(),
+		LogFieldFabric:    fmt.Sprintf("%v", ctx.Value(LogFieldFabric)),
 	}).Info("total query collection time")
 
 	commonLabels := make(map[string]string)
@@ -419,9 +580,9 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 	var bodyText = Metrics2Prometheus(metrics, api.metricPrefix, commonLabels, metricsFormat)
 
 	log.WithFields(log.Fields{
-		"requestid": ctx.Value("requestid"),
-		"exec_time": time.Since(start).Microseconds(),
-		"fabric":    fmt.Sprintf("%v", ctx.Value("fabric")),
+		LogFieldRequestID: ctx.Value(LogFieldRequestID),
+		LogFieldExecTime:  time.Since(start).Microseconds(),
+		LogFieldFabric:    fmt.Sprintf("%v", ctx.Value(LogFieldFabric)),
 	}).Info("metrics to prometheus format")
 
 	if openmetrics {
@@ -438,7 +599,8 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		lrw.WriteHeader(503)
 	}
-	w.Write([]byte(bodyText))
+	_, _ = w.Write([]byte(bodyText))
+
 	return
 }
 
@@ -450,7 +612,7 @@ func alive(w http.ResponseWriter, r *http.Request) {
 	lrw := loggingResponseWriter{ResponseWriter: w}
 	lrw.WriteHeader(200)
 
-	w.Write([]byte(alive))
+	_, _ = w.Write([]byte(alive))
 }
 
 func nextRequestID() ksuid.KSUID {
@@ -465,18 +627,18 @@ func logCall(next http.Handler) http.Handler {
 		lrw := loggingResponseWriter{ResponseWriter: w}
 		requestId := nextRequestID()
 
-		ctx := context.WithValue(r.Context(), "requestid", requestId)
+		ctx := context.WithValue(r.Context(), LogFieldRequestID, requestId)
 		next.ServeHTTP(&lrw, r.WithContext(ctx)) // call original
 
 		w.Header().Set("Content-Length", strconv.Itoa(lrw.length))
 		log.WithFields(log.Fields{
-			"method":    r.Method,
-			"uri":       r.RequestURI,
-			"fabric":    r.URL.Query().Get("target"),
-			"status":    lrw.statusCode,
-			"length":    lrw.length,
-			"requestid": requestId,
-			"exec_time": time.Since(start).Microseconds(),
+			"method":          r.Method,
+			"uri":             r.RequestURI,
+			LogFieldFabric:    r.URL.Query().Get("target"),
+			"status":          lrw.statusCode,
+			"length":          lrw.length,
+			LogFieldRequestID: ctx.Value(LogFieldRequestID),
+			LogFieldExecTime:  time.Since(start).Microseconds(),
 		}).Info("api call")
 	})
 }
@@ -485,13 +647,9 @@ func promMonitor(next http.Handler, ops *prometheus.HistogramVec, endpoint strin
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		start := time.Now()
-
 		lrw := loggingResponseWriter{ResponseWriter: w}
-
 		next.ServeHTTP(&lrw, r) // call original
-
 		response := time.Since(start).Seconds()
-
 		ops.With(prometheus.Labels{"url": endpoint, "status": strconv.Itoa(lrw.statusCode)}).Observe(response)
 	})
 }

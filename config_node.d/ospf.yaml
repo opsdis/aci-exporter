@@ -1,0 +1,25 @@
+class_queries:
+  # OSPF Neighbors
+  ospf_neighbors:
+    class_name: ospfAdjEp
+    query_parameter: '?order-by=ospfAdjEp.dn&rsp-subtree-include=required&rsp-subtree-class=ospfAdjStats&rsp-subtree=children'
+    metrics:
+      - name: ospf_neighbors
+        # As metric I am saving the last time the conenction changed state
+        value_name: ospfAdjEp.children.[ospfAdjStats].attributes.lastStChgTs
+        value_regex_transformation: "(?P<date>.*)"
+        value_calculation: "date"
+    labels:
+      - property_name: ospfAdjEp.attributes.dn
+        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*).*/dom-(?P<vrf>.*)/if-\\[(?P<interface>.*)\\]"
+      - property_name: ospfAdjEp.attributes.area
+        regex: "(?P<area>.*)"
+      - property_name: ospfAdjEp.attributes.id
+        regex: "(?P<id>.*)"
+      - property_name: ospfAdjEp.attributes.operSt
+        regex: "(?P<oper_state>.*)"
+      - property_name: ospfAdjEp.attributes.peerIp
+        regex: "(?P<peer_ip>.*)"
+    staticlabels:
+      - key: type
+        value: ospf

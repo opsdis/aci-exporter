@@ -8,8 +8,6 @@
 // GNU General Public License for more details.
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
-//
-// Copyright 2020 Opsdis AB
 
 package main
 
@@ -49,6 +47,8 @@ func SetDefaultValues() {
 	viper.BindEnv("logfile")
 	viper.SetDefault("logformat", "json")
 	viper.BindEnv("logformat")
+	viper.SetDefault("loglevel", "info")
+	viper.BindEnv("loglevel")
 	viper.SetDefault("config", "config")
 	viper.BindEnv("config")
 	viper.SetDefault("config_dir", "config.d")
@@ -69,6 +69,14 @@ func SetDefaultValues() {
 	viper.SetDefault("HTTPClient.keepalive", 15)
 	viper.BindEnv("HTTPClient.keepalive")
 
+	// The page size when using paging
+	viper.SetDefault("HTTPClient.pagesize", 1000)
+	viper.BindEnv("HTTPClient.pagesize")
+
+	// If parallel paging is enabled the exporter will fetch multiple pages at the same time
+	viper.SetDefault("HTTPClient.parallel_paging", false)
+	viper.BindEnv("HTTPClient.parallel_paging")
+
 	// This is currently not used
 	viper.SetDefault("HTTPClient.tlshandshaketimeout", 10)
 	viper.BindEnv("HTTPClient.tlshandshaketimeout")
@@ -83,4 +91,11 @@ func SetDefaultValues() {
 	viper.SetDefault("httpserver.write_timeout", 0)
 	viper.BindEnv("httpserver.write_timeout")
 
+	// Service discovery
+	viper.SetDefault("service_discovery.labels", []string{"address", "dn", "fabricDomain", "fabricId", "id",
+		"inbMgmtAddr", "name", "nameAlias", "nodeType", "oobMgmtAddr", "podId", "role", "serial", "siteId", "state",
+		"version",
+	})
+	viper.SetDefault("service_discovery.target_fields", []string{"aci_exporter_fabric", "oobMgmtAddr"})
+	viper.SetDefault("service_discovery.target_format", "%s#%s")
 }

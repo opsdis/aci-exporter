@@ -8,8 +8,6 @@
 // GNU General Public License for more details.
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
-//
-// Copyright 2020-2023 Opsdis
 
 package main
 
@@ -64,7 +62,6 @@ type AciToken struct {
 
 // AciConnection is the connection object
 type AciConnection struct {
-	ctx              context.Context
 	fabricConfig     *Fabric
 	activeController *int
 	URLMap           map[string]string
@@ -72,14 +69,24 @@ type AciConnection struct {
 	Client           http.Client
 	token            *AciToken
 	tokenMutex       sync.Mutex
-	//responseTime     *prometheus.HistogramVec
+	// If a node query this is set to the instance
+	Node *string
 }
 
-var connectionCache = make(map[*Fabric]*AciConnection)
+var connectionCache = make(map[string]*AciConnection)
 
-func newAciConnection(ctx context.Context, fabricConfig *Fabric) *AciConnection {
+// cacheName returns a unique name for the connection. Every connection is unique per fabric and node with own
+// cache entry
+func cacheName(aciName string, node *string) string {
+	if node == nil {
+		return aciName
+	}
+	return aciName + *node
+}
 
-	val, ok := connectionCache[fabricConfig]
+func newAciConnection(fabricConfig *Fabric, node *string) *AciConnection {
+	// Check if we have a connection in the cache
+	val, ok := connectionCache[cacheName(fabricConfig.FabricName, node)]
 	if ok {
 		return val
 	}
@@ -102,36 +109,43 @@ func newAciConnection(ctx context.Context, fabricConfig *Fabric) *AciConnection 
 	urlMap["faults"] = "/api/class/faultCountsWithDetails.json"
 
 	con := &AciConnection{
-		ctx:              ctx,
 		fabricConfig:     fabricConfig,
 		activeController: new(int),
 		URLMap:           urlMap,
 		Headers:          headers,
 		Client:           *httpClient,
-		//responseTime:     responseTime,
+		Node:             node,
 	}
-	connectionCache[fabricConfig] = con
-	return connectionCache[fabricConfig]
+	connectionCache[cacheName(fabricConfig.FabricName, node)] = con
+	return connectionCache[cacheName(fabricConfig.FabricName, node)]
 }
 
 // login get the existing token if valid or do a full /login
-func (c *AciConnection) login() error {
+func (c *AciConnection) login(ctx context.Context) error {
 
-	err, done := c.tokenProcessing()
+	err, done := c.tokenProcessing(ctx)
 	if done {
 		return err
 	}
-	return c.loginProcessing()
+	return c.loginProcessing(ctx)
 
 }
 
 // loginProcessing do a full /login
-func (c *AciConnection) loginProcessing() error {
+func (c *AciConnection) loginProcessing(ctx context.Context) error {
 	c.tokenMutex.Lock()
 	defer c.tokenMutex.Unlock()
+	if c.Node != nil {
+		return c.nodeLogin(ctx)
+	} else {
+		return c.apicLogin(ctx)
+	}
+}
+
+func (c *AciConnection) apicLogin(ctx context.Context) error {
 	for i, controller := range c.fabricConfig.Apic {
 
-		response, status, err := c.doPostJSON("login", fmt.Sprintf("%s%s", controller, c.URLMap["login"]),
+		response, status, err := c.doPostJSON(ctx, "login", fmt.Sprintf("%s%s", controller, c.URLMap["login"]),
 			[]byte(fmt.Sprintf("{\"aaaUser\":{\"attributes\":{\"name\":\"%s\",\"pwd\":\"%s\"}}}", c.fabricConfig.Username, c.fabricConfig.Password)))
 
 		if err != nil || status != 200 {
@@ -139,18 +153,20 @@ func (c *AciConnection) loginProcessing() error {
 			err = fmt.Errorf("failed to login to %s, try next apic", controller)
 
 			log.WithFields(log.Fields{
-				"requestid": c.ctx.Value("requestid"),
-				"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
-				"token":     fmt.Sprintf("login"),
+				LogFieldRequestID: ctx.Value(LogFieldRequestID),
+				"fabric":          fmt.Sprintf("%v", c.fabricConfig.FabricName),
+				"token":           "login",
+				"controller":      controller,
 			}).Error(err)
 		} else {
 			c.newToken(response)
 
 			*c.activeController = i
 			log.WithFields(log.Fields{
-				"requestid": c.ctx.Value("requestid"),
-				"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
-				"token":     fmt.Sprintf("login"),
+				LogFieldRequestID: ctx.Value(LogFieldRequestID),
+				LogFieldFabric:    fmt.Sprintf("%v", c.fabricConfig.FabricName),
+				"token":           "login",
+				"controller":      controller,
 			}).Info(fmt.Sprintf("Using apic %s", controller))
 			return nil
 		}
@@ -158,48 +174,72 @@ func (c *AciConnection) loginProcessing() error {
 	return fmt.Errorf("failed to login to any apic controllers")
 }
 
+func (c *AciConnection) nodeLogin(ctx context.Context) error {
+	// Node query
+	response, status, err := c.doPostJSON(ctx, "login", fmt.Sprintf("%s%s", *c.Node, c.URLMap["login"]),
+		[]byte(fmt.Sprintf("{\"aaaUser\":{\"attributes\":{\"name\":\"%s\",\"pwd\":\"%s\"}}}", c.fabricConfig.Username, c.fabricConfig.Password)))
+
+	if err != nil || status != 200 {
+		err = fmt.Errorf("failed to login to %s", *c.Node)
+		log.WithFields(log.Fields{
+			LogFieldRequestID: ctx.Value(LogFieldRequestID),
+			LogFieldFabric:    fmt.Sprintf("%v", c.fabricConfig.FabricName),
+			"token":           fmt.Sprintf("login"),
+			"node":            *c.Node,
+		}).Error(err)
+		return fmt.Errorf("failed to login to node")
+	}
+
+	c.newToken(response)
+	log.WithFields(log.Fields{
+		LogFieldRequestID: ctx.Value(LogFieldRequestID),
+		LogFieldFabric:    fmt.Sprintf("%v", c.fabricConfig.FabricName),
+		"token":           fmt.Sprintf("login"),
+		"node":            *c.Node,
+	}).Info(fmt.Sprintf("Using node"))
+	return nil
+}
+
 // tokenProcessing if token are valid reuse or try to do a /refresh
-func (c *AciConnection) tokenProcessing() (error, bool) {
+func (c *AciConnection) tokenProcessing(ctx context.Context) (error, bool) {
 	if c.token != nil {
 		c.tokenMutex.Lock()
 		defer c.tokenMutex.Unlock()
 		if c.token.lifetime < time.Now().Unix() {
 			log.WithFields(log.Fields{
-				"requestid": c.ctx.Value("requestid"),
-				"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
-				"token":     fmt.Sprintf("lifetime"),
+				LogFieldRequestID: ctx.Value(LogFieldRequestID),
+				LogFieldFabric:    fmt.Sprintf("%v", c.fabricConfig.FabricName),
+				"token":           fmt.Sprintf("lifetime"),
 			}).Info("token reached lifetime seconds")
 			return nil, false
 		} else if c.token.expire < time.Now().Unix() {
-			response, status, err := c.get("refresh", fmt.Sprintf("%s%s", c.fabricConfig.Apic[*c.activeController], c.URLMap["refresh"]))
+			response, status, err := c.get(ctx, "refresh", fmt.Sprintf("%s%s", c.fabricConfig.Apic[*c.activeController], c.URLMap["refresh"]))
 			if err != nil || status != 200 {
-				//errRe = fmt.Errorf("failed to refresh token %s", c.fabricConfig.Apic[*c.activeController])
 				log.WithFields(log.Fields{
-					"requestid": c.ctx.Value("requestid"),
-					"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
-					"token":     fmt.Sprintf("refresh"),
+					LogFieldRequestID: ctx.Value(LogFieldRequestID),
+					LogFieldFabric:    fmt.Sprintf("%v", c.fabricConfig.FabricName),
+					"token":           fmt.Sprintf("refresh"),
 				}).Warning(err)
 				refreshFailedMetric.With(prometheus.Labels{
-					"fabric": fmt.Sprintf("%v", c.ctx.Value("fabric"))}).Inc()
+					LogFieldFabric: fmt.Sprintf("%v", c.fabricConfig.FabricName)}).Inc()
 				return err, false
 			} else {
 				c.refreshToken(response)
 				log.WithFields(log.Fields{
-					"requestid": c.ctx.Value("requestid"),
-					"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
-					"token":     fmt.Sprintf("refresh"),
+					LogFieldRequestID: ctx.Value(LogFieldRequestID),
+					LogFieldFabric:    fmt.Sprintf("%v", c.fabricConfig.FabricName),
+					"token":           fmt.Sprintf("refresh"),
 				}).Info("refresh token")
 				refreshMetric.With(prometheus.Labels{
-					"fabric": fmt.Sprintf("%v", c.ctx.Value("fabric"))}).Inc()
+					LogFieldFabric: fmt.Sprintf("%v", c.fabricConfig.FabricName)}).Inc()
 				return nil, true
 			}
 		} else {
 			log.WithFields(log.Fields{
-				"requestid":          c.ctx.Value("requestid"),
-				"fabric":             fmt.Sprintf("%v", c.ctx.Value("fabric")),
+				LogFieldRequestID:    ctx.Value(LogFieldRequestID),
+				LogFieldFabric:       fmt.Sprintf("%v", c.fabricConfig.FabricName),
 				"token":              fmt.Sprintf("valid"),
-				"valid_time_seconds": c.token.expire - time.Now().Unix(),
-			}).Info("token still valid")
+				"valid_time_seconds": c.token.expire - time.Now().Unix()}).Debug("token still valid")
 			return nil, true
 		}
 	}
@@ -232,73 +272,80 @@ func (c *AciConnection) refreshToken(response []byte) {
 	}
 }
 
-func (c *AciConnection) logout() bool {
-	_, status, err := c.doPostJSON("logout", fmt.Sprintf("%s%s", c.fabricConfig.Apic[*c.activeController], c.URLMap["logout"]),
-		[]byte(fmt.Sprintf("{\"aaaUser\":{\"attributes\":{\"name\":\"%s\"}}}", c.fabricConfig.Username)))
-	if err != nil || status != 200 {
-		log.WithFields(log.Fields{
-			"requestid": c.ctx.Value("requestid"),
-			"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
-		}).Error(err)
-		return false
-	}
-	return true
-}
-
-func (c *AciConnection) getByQuery(table string) (string, error) {
-	data, _, err := c.get(table, fmt.Sprintf("%s%s", c.fabricConfig.Apic[*c.activeController], c.URLMap[table]))
+func (c *AciConnection) GetByQuery(ctx context.Context, table string) (string, error) {
+	data, _, err := c.get(ctx, table, fmt.Sprintf("%s%s", c.fabricConfig.Apic[*c.activeController], c.URLMap[table]))
 	if err != nil {
 		log.WithFields(log.Fields{
-			"requestid": c.ctx.Value("requestid"),
-			"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
+			LogFieldRequestID: ctx.Value(LogFieldRequestID),
+			LogFieldFabric:    fmt.Sprintf("%v", c.fabricConfig.FabricName),
 		}).Error(fmt.Sprintf("Request %s failed - %s.", c.URLMap[table], err))
 		return "", err
 	}
 	return string(data), nil
 }
 
-func (c *AciConnection) getByClassQuery(class string, query string) (string, error) {
-	data, _, err := c.get(class, fmt.Sprintf("%s/api/class/%s.json%s", c.fabricConfig.Apic[*c.activeController], class, query))
-	if err != nil {
-		log.WithFields(log.Fields{
-			"requestid": c.ctx.Value("requestid"),
-			"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
-		}).Error(fmt.Sprintf("Class request %s failed - %s.", class, err))
-		return "", err
+func (c *AciConnection) GetByClassQuery(ctx context.Context, class string, query string) (string, error) {
+	if c.Node == nil {
+		// A apic query
+		data, _, err := c.get(ctx, class, fmt.Sprintf("%s/api/class/%s.json%s", c.fabricConfig.Apic[*c.activeController], class, query))
+		if err != nil {
+			log.WithFields(log.Fields{
+				LogFieldRequestID: ctx.Value(LogFieldRequestID),
+				LogFieldFabric:    fmt.Sprintf("%v", c.fabricConfig.FabricName),
+			}).Error(fmt.Sprintf("Class request %s failed - %s.", class, err))
+			return "", err
+		}
+		return string(data), nil
+	} else {
+		// A node query
+		data, _, err := c.get(ctx, class, fmt.Sprintf("%s/api/class/%s.json%s", *c.Node, class, query))
+		if err != nil {
+			log.WithFields(log.Fields{
+				LogFieldRequestID: ctx.Value(LogFieldRequestID),
+				LogFieldFabric:    fmt.Sprintf("%v", c.fabricConfig.FabricName),
+				"node":            c.Node,
+			}).Error(fmt.Sprintf("Class request %s failed - %s.", class, err))
+			return "", err
+		}
+		return string(data), nil
 	}
-	return string(data), nil
 }
 
-func (c *AciConnection) get(label string, url string) ([]byte, int, error) {
+func (c *AciConnection) get(ctx context.Context, label string, url string) ([]byte, int, error) {
 	start := time.Now()
-	body, status, err := c.doGet(url)
+	//body, status, err := c.doGet(ctx, url)
+
+	aciClient := NewAciClient(c.Client, c.Headers, c.token, c.fabricConfig.FabricName, url)
+
+	body, status, err := aciClient.Get(ctx, url)
+
 	responseTime := time.Since(start).Seconds()
 	responseTimeMetric.With(prometheus.Labels{
-		"fabric": fmt.Sprintf("%v", c.ctx.Value("fabric")),
-		"class":  label,
-		"method": "GET",
-		"status": strconv.Itoa(status)}).Observe(responseTime)
+		LogFieldFabric: fmt.Sprintf("%v", c.fabricConfig.FabricName),
+		"class":        label,
+		"method":       "GET",
+		"status":       strconv.Itoa(status)}).Observe(responseTime)
 
 	log.WithFields(log.Fields{
-		"method":    "GET",
-		"uri":       url,
-		"class":     label,
-		"status":    status,
-		"length":    len(body),
-		"requestid": c.ctx.Value("requestid"),
-		"exec_time": time.Since(start).Microseconds(),
-		"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
+		"method":          "GET",
+		"uri":             url,
+		"class":           label,
+		"status":          status,
+		"length":          len(body),
+		LogFieldRequestID: ctx.Value(LogFieldRequestID),
+		LogFieldExecTime:  time.Since(start).Microseconds(),
+		LogFieldFabric:    fmt.Sprintf("%v", c.fabricConfig.FabricName),
 	}).Info("api call fabric")
 	return body, status, err
 }
 
-func (c *AciConnection) doGet(url string) ([]byte, int, error) {
+func (c *AciConnection) doGet(ctx context.Context, url string) ([]byte, int, error) {
 
 	req, err := http.NewRequest("GET", url, bytes.NewBuffer([]byte{}))
 	if err != nil {
 		log.WithFields(log.Fields{
-			"requestid": c.ctx.Value("requestid"),
-			"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
+			LogFieldRequestID: ctx.Value(LogFieldRequestID),
+			LogFieldFabric:    fmt.Sprintf("%v", c.fabricConfig.FabricName),
 		}).Error(err)
 		return nil, 0, err
 	}
@@ -326,8 +373,8 @@ func (c *AciConnection) doGet(url string) ([]byte, int, error) {
 	resp, err := c.Client.Do(req)
 	if err != nil {
 		log.WithFields(log.Fields{
-			"requestid": c.ctx.Value("requestid"),
-			"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
+			LogFieldRequestID: ctx.Value(LogFieldRequestID),
+			LogFieldFabric:    fmt.Sprintf("%v", c.fabricConfig.FabricName),
 		}).Error(err)
 		return nil, 0, err
 	}
@@ -338,8 +385,8 @@ func (c *AciConnection) doGet(url string) ([]byte, int, error) {
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
 			log.WithFields(log.Fields{
-				"requestid": c.ctx.Value("requestid"),
-				"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
+				LogFieldRequestID: ctx.Value(LogFieldRequestID),
+				LogFieldFabric:    fmt.Sprintf("%v", c.fabricConfig.FabricName),
 			}).Error(err)
 			return nil, resp.StatusCode, err
 		}
@@ -349,13 +396,13 @@ func (c *AciConnection) doGet(url string) ([]byte, int, error) {
 	return nil, resp.StatusCode, fmt.Errorf("ACI api returned %d", resp.StatusCode)
 }
 
-func (c *AciConnection) doPostJSON(label string, url string, requestBody []byte) ([]byte, int, error) {
+func (c *AciConnection) doPostJSON(ctx context.Context, label string, url string, requestBody []byte) ([]byte, int, error) {
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(requestBody))
 	if err != nil {
 		log.WithFields(log.Fields{
-			"requestid": c.ctx.Value("requestid"),
-			"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
+			LogFieldRequestID: ctx.Value(LogFieldRequestID),
+			LogFieldFabric:    fmt.Sprintf("%v", c.fabricConfig.FabricName),
 		}).Error(err)
 		return nil, 0, err
 	}
@@ -370,8 +417,8 @@ func (c *AciConnection) doPostJSON(label string, url string, requestBody []byte)
 
 	if err != nil {
 		log.WithFields(log.Fields{
-			"requestid": c.ctx.Value("requestid"),
-			"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
+			LogFieldRequestID: ctx.Value(LogFieldRequestID),
+			LogFieldFabric:    fmt.Sprintf("%v", c.fabricConfig.FabricName),
 		}).Error(err)
 		return nil, 0, err
 	}
@@ -379,18 +426,18 @@ func (c *AciConnection) doPostJSON(label string, url string, requestBody []byte)
 	var status = resp.StatusCode
 
 	responseTimeMetric.With(prometheus.Labels{
-		"fabric": fmt.Sprintf("%v", c.ctx.Value("fabric")),
-		"class":  label,
-		"method": "POST",
-		"status": strconv.Itoa(status)}).Observe(responseTime)
+		LogFieldFabric: fmt.Sprintf("%v", c.fabricConfig.FabricName),
+		"class":        label,
+		"method":       "POST",
+		"status":       strconv.Itoa(status)}).Observe(responseTime)
 
 	log.WithFields(log.Fields{
-		"method":    "POST",
-		"uri":       url,
-		"status":    status,
-		"requestid": c.ctx.Value("requestid"),
-		"exec_time": time.Since(start).Microseconds(),
-		"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
+		"method":          "POST",
+		"uri":             url,
+		"status":          status,
+		LogFieldRequestID: ctx.Value(LogFieldRequestID),
+		LogFieldExecTime:  time.Since(start).Microseconds(),
+		LogFieldFabric:    fmt.Sprintf("%v", c.fabricConfig.FabricName),
 	}).Info("api call fabric")
 
 	defer resp.Body.Close()
@@ -399,8 +446,8 @@ func (c *AciConnection) doPostJSON(label string, url string, requestBody []byte)
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
 			log.WithFields(log.Fields{
-				"requestid": c.ctx.Value("requestid"),
-				"fabric":    fmt.Sprintf("%v", c.ctx.Value("fabric")),
+				LogFieldRequestID: ctx.Value(LogFieldRequestID),
+				LogFieldFabric:    fmt.Sprintf("%v", c.fabricConfig.FabricName),
 			}).Error(err)
 			return nil, resp.StatusCode, err
 		}

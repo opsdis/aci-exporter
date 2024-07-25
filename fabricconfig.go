@@ -8,14 +8,14 @@
 // GNU General Public License for more details.
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
-//
-// Copyright 2020 Opsdis AB
 
 package main
 
 type Fabric struct {
-	Username string `mapstructure:"username"`
-	Password string `mapstructure:"password"`
-	Apic     []string
-	AciName  string `mapstructure:"aci_name"`
+	Username        string                 `mapstructure:"username"`
+	Password        string                 `mapstructure:"password"`
+	Apic            []string               `mapstructure:"apic"`
+	AciName         string                 `mapstructure:"aci_name"`
+	FabricName      string                 `mapstructure:"fabric_name"`
+	DiscoveryConfig DiscoveryConfiguration `mapstructure:"service_discovery"`
 }

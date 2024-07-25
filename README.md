@@ -4,13 +4,27 @@ aci-exporter - A Cisco ACI Prometheus exporter
 
 # Overview
 The aci-exporter provide metrics from a Cisco ACI fabric by using the ACI Rest API against ACPI controller(s).
+The exporter also have the capability to directly scrape individual splines and leafs using the aci-exporter inbuilt 
+http based service discovery. Doing direct spine and leaf queries is typical useful in very large fabrics, where doing all 
+api calls through the apic can put a high load on the apic and result in high response time.
+
+The aci-exporter has been tested on a fabric with more than 500 spines and leafs. To achieve this the exporter use a
+number of key features:
+- Dynamic service discovery of all spines and leafs nodes in the fabric
+- Using node queries to scrape individual spine and leaf nodes
+- Parallel page request when queries include the `order-by` statement 
 
 The exporter can return data both in the [Prometheus](https://prometheus.io/) and the 
 [Openmetrics](https://openmetrics.io/) (v1) exposition format. 
 
-The metrics that are exported is configured by definitions of a query. The query can be of any supported ACI class.
+The metrics that are exported is configured by definitions of queries. The query can be of any supported ACI class.
+
+The exporter is written in Go and is a single binary with no dependencies.
 
 ![Dashboard example](images/aci_obf.png)
+
+>If you are looking for a complete way to monitor your ACI fabric, including the aci-exporter, Prometheus
+Loki, and Grafana you should check out [ACI Monitor Stack](https://github.com/datacenter/aci-monitoring-stack).
 
 # How to configure queries
  
@@ -18,24 +32,25 @@ The exporter provides three types of query configuration:
 
 - Class queries - one query, many metrics - These are applicable where one query can result in multiple metric names 
 sharing the same labels. 
-A good example is queries on interfaces, ethpmPhysIf, that results in metrics for speed, state, etc.  
+A good example is queries on interfaces, class ethpmPhysIf, that results in metrics for speed, state, etc.  
 
 - Group class queries - multiple queries, one metric - These are applicable when multiple queries result in a single 
-metrics name but with configured, common and uniq labels. 
+metrics name with common and uniq labels. 
 Example of this is the metric `health`, where all the different objects health require different queries, 
 but they are all health. So instead of xyz_health it becomes health and some label with value xyz.
  
 - Compound queries - multiple queries, one metric and fixed labels - These are applicable where multiple queries result 
-in single metric name with configured labels. This is typical when counting different entities with 
-`?rsp-subtree-include=count` since no labels are returned that can be used for labels.
+in single metric name with configured labels. This is typical when counting different entities with filter like 
+`?rsp-subtree-include=count`. Since no labels are returned fixed labels is used.
 
 There also some so-called built-in queries. These are hard coded queries.
  
 > Example of queries can be found in the `example-config.yaml` file. 
 > Make sure you understand the ACI api before changing or creating new ones.
 
+# High level features
 ## Configuration directory (Since version 0.7.0)
-In addition to configure all queries in the configuration file they can also be configured in different files in the 
+In addition to configure all queries in the configuration file, they can also be configured in different files in the 
 configuration directory. This is by default the directory `config.d` located in the same directory as the configuration 
 file. Instead of having all queries in a single file it is possible to divide by type and/or purpose.
 
@@ -102,7 +117,8 @@ The export has some standard metric "built-in". These are:
 The configuration should by default be in the file `config.yaml`. It is also an option to place `class_queries`, 
 `compound_queries` and/or `group_class_queries` in different files in a directory, a directory by default named
 `config.d` that is in the same directory path as the configuration file. 
-> The name of the directory can be changed using the `-config_dir` argument.
+> The name of the directory can be changed using the `-config_dir` argument or the `config_dir: ..` entry in the config 
+> file or by using environment variables.
 
 If queries has the same name they will be overridden by the order they are parsed and finally query name in the 
 configuration file, default, `config.yaml` will have the highest priority. 
@@ -211,7 +227,7 @@ of children objets, and for all the children classes we like to get the `hiAlarm
 ```yaml
 value_name: ethpmDOMStats.children.[.*].attributes.hiAlarm
 ```
-The `.*` will be substituted with the children class name. So that means it can also be used as a label like:
+The `.*` will be substituted with the children class name. That means it can also be used as a label like:
 ```yaml
     labels:
       # this will be the child class name
@@ -423,6 +439,190 @@ The aci-exporter will attach the following labels to all metrics
 - `aci` the name of the ACI. This is done by an API call.
 - `fabric` the name of the configuration.
 
+# Use aci-exporter in large fabric setups (since 0.8.0)
+In large fabrics the aci-exporter provide a way to distribute the api calls to the individual spine and leaf nodes 
+instead of using a single apic (or multiple behind a LB).
+This configuration depend on the aci-exporter's dynamic service discovery used by Prometheus. The discovery detect all 
+the current nodes in the fabric including the apic's based on the `topSystems` class. To collect metrics the same 
+`/probe` api is used with the addition of the query parameter `node` that is set to the spine or leaf node where 
+to scrape.
+
+## Service discovery
+The service discovery is exposed on the `/sd` endpoint where the query parameter `target` is the name of fabric in the
+`config.yml` file, e.g. `'http://localhost:9643/sd?fabric=xyz'`. The output can look like this:
+
+```json
+    ....
+    },
+    {
+        "targets": [
+            "sydney#172.16.0.68"
+        ],
+        "labels": {
+            "__meta_aci_exporter_fabric": "sydney",
+            "__meta_address": "10.3.96.66",
+            "__meta_dn": "topology/pod-2/node-202/sys",
+            "__meta_fabricDomain": "fab2",
+            "__meta_fabricId": "1",
+            "__meta_id": "202",
+            "__meta_inbMgmtAddr": "0.0.0.0",
+            "__meta_name": "leaf202",
+            "__meta_nameAlias": "",
+            "__meta_nodeType": "unspecified",
+            "__meta_oobMgmtAddr": "172.16.0.68",
+            "__meta_podId": "2",
+            "__meta_role": "leaf",
+            "__meta_serial": "FDO2442054U",
+            "__meta_siteId": "2",
+            "__meta_state": "in-service",
+            "__meta_version": "n9000-16.0(5h)"
+        }
+    },
+    .....
+```
+As describe in the example above the `targets` is by default set to the fabric name defined in the aci-exporter 
+config.yaml, the label `__meta_aci_exporter_fabric` and the label `__meta_oobMgmtAddr` separated with a `#` character.
+The `#` character can be used in the prometheus config as a separator to get both query parameters needed to access a 
+single node of a spine or leaf:
+```yaml
+    relabel_configs:
+      - source_labels: [ __meta_role ]
+        # Only run this job for spine and leaf roles
+        regex: "(spine|leaf)"
+        action: "keep"
+      
+      # Get the target param from __address__ that is <fabric>#<oobMgmtAddr> by default
+      - source_labels: [ __address__ ]
+        separator: "#"
+        regex: (.*)#(.*)
+        replacement: "$1"
+        target_label: __param_target
+
+      # Get the node param from __address__ that is <fabric>#<oobMgmtAddr> by default
+      - source_labels: [ __address__ ]
+        separator: "#"
+        regex: (.*)#(.*)
+        replacement: "$2"
+        target_label: 
+```
+
+If the endpoint is called without a query parameter, service discovery is done for all configured fabrics.
+The discovery response can now be used in the prometheus configuration as described in the example file 
+[`prometheus/prometheus_nodes.yml`](prometheus/prometheus_nodes.yml).
+
+> In the directory `config_node.d` there is a selection of queries that works for node based queries.
+
+What the service discovery should return can be highly configurable. This is both related to the targets and labels 
+returned. 
+
+Overriding the defaults can be done for all fabrics, but also for individual fabrics. The individual configuration always
+take precedence.  
+
+For the targets the default is to return fabric name and `oobMgmtAddr`, but if all fabrics instead use the inbMgmtAddr 
+for access this can be changed in the `config.yaml`  
+
+```yaml
+# Common service discovery
+service_discovery:
+  target_format: "%s#%s"
+  target_fields:
+    - aci_exporter_fabric
+    - inMgmtAddr
+```
+
+For each fabric the discovery can also be override using the same definitions as above but on the fabric level.
+```yaml
+fabrics:
+  # This is the Cisco provided sandbox that is open for testing
+  cisco_sandbox:
+    username: admin
+    password: <check the cisco sandbox to get the password>
+    apic:
+      - https://sandboxapicdc.cisco.com
+    service_discovery:
+     target_format: "%s#%s"
+     target_fields:
+      - aci_exporter_fabric
+      - inbMgmtAddr
+```
+
+All fields returned by the `topSystems` class query can be used as targets and labels.
+
+## Fabric service discovery 
+The service discovery will also return the discovery of the configured aci-exporter fabrics. This will be entries
+with the following content:
+
+```yaml
+    {
+      "targets": [
+        "sydney"
+      ],
+      "labels": {
+        "__meta_fabricDomain": "fab2",
+        "__meta_role": "aci_exporter_fabric"
+      }
+  }
+
+``` 
+
+This can now be used from the prometheus configuration to do the "classic" apic queries like:
+```yaml
+  - job_name: 'aci'
+    scrape_interval: 1m
+    scrape_timeout: 30s
+    metrics_path: /probe
+    params:
+      queries:
+        - health,fabric_node_info,object_count,max_capacity
+
+    http_sd_configs:
+      - url: "http://localhost:9643/sd"
+        refresh_interval: 5m
+
+    relabel_configs:
+      - source_labels: [ __meta_role ]
+        regex: "aci_exporter_fabric"
+        action: "keep"
+
+      - source_labels: [ __address__ ]
+        target_label: __param_target
+      - source_labels: [ __param_target ]
+        target_label: instance
+      - target_label: __address__
+        replacement: 127.0.0.1:9643
+```
+Please review [`prometheus/prometheus_nodes.yml`](prometheus/prometheus_nodes.yml) example. With discovery there is 
+no need for any static configuration and only two job configurations to manage all aci fabrics configured.
+
+## Configure node queries
+There is no difference how a node query is configured in the aci-exporter from apic query except:
+1. Not all queries are supported on the node
+2. When extracting label values there is no information about the node id or pod id. These must be managed by 
+discovery and relabeling, see [`prometheus/prometheus_nodes.yml`](prometheus/prometheus_nodes.yml)
+3. The resulting DN is different between apic api and node api. From the apic we typical do label extraction using 
+```yaml
+    labels:
+      # The field in the json used to parse the labels from
+      - property_name: ethpmPhysIf.attributes.dn
+        # The regex where the string enclosed in the P<xyz> is the label name
+        regex: "^topology/pod-(?P<podid>[1-9][0-9]*)/node-(?P<nodeid>[1-9][0-9]*)/sys/phys-\\[(?P<interface>[^\\]]+)\\]/"
+```
+In the above the topology path is part of the response. But for a node based query the same would be:
+```yaml
+    labels:
+      # The field in the json used to parse the labels from
+      - property_name: ethpmPhysIf.attributes.dn
+        # The regex where the string enclosed in the P<xyz> is the label name
+        regex: "^sys/phys-\\[(?P<interface>[^\\]]+)\\]/"
+```
+> As mentioned above the podid and nodeid is added to the timeserie using Prometheus relabeling.
+
+4. Node queries must have named queries in the Prometheus config
+
+> It is highly recommended to do direct spine and leaf node queries if the fabric is large, both in the number of nodes
+> but also in the number of objects in the fabric.
+> Most queries should be possible to do directly on the nodes.
+
 # Configuration
 
 > For configuration options please see the `example-config.yml` file.
@@ -466,7 +666,7 @@ The metrics created by the aci-exporter is controlled by the following attribute
 - `name` the name of the metric
 - `type` the type of the metric, if not set it will default to gauge. If the type is a counter the metric name will be
 postfix with `_total`
-- `unit` a base unit like bytes, seconds etc. If defined the metrics name will be postfixed with the unit
+- `unit` a base unit like bytes, seconds etc. If defined the metrics name will have postfix with the unit
 - `help` the description text of the metrics, if not set it will default to `Missing description` 
 
 With the following settings:
@@ -483,6 +683,34 @@ The metric output will be like:
 # TYPE aci_uptime_seconds_total counter
 aci_uptime_seconds_total{.......} 98657
 ```
+## Paging support
+For large fabrics the response latency can increase and even the max response items may not be enough. For these large
+fabrics it possible to use paging request where aci-exporter will make each paging request.
+
+Paging is **only** supported if the query has been specified with `order-by=<class>.dn`, like:
+```yaml
+class_queries:                                                                                                                                                                      
+  bgp_peers:                                                                                                                                                                        
+    class_name: bgpPeer                                                                                                                                                             
+    query_parameter: '?order-by=bgpPeer.dn&rsp-subtree=children&rsp-subtree-class=bgpPeerEntry'
+    ....
+```
+
+The paged request is by default done sequential, but parallel paging is supported. To use parallel
+paging the following configuration can be done in the configuration file:
+```yaml
+httpclient:
+  # this is the max and also the default value
+  pagesize: 1000
+  # enable parallel paging, default is false
+  parallel_paging: true
+```
+It is also possible to set the configuration through environment variables:
+```shell
+ACI_EXPORTER_HTTPCLIENT_PAGESIZE=1000
+ACI_EXPORTER_HTTPCLIENT_PARALLEL_PAGING=true
+```
+
 ## Metric output formatting
 There is a number of options to control the output format. The configuration related to the formatting 
 is defined in the `metric_format` section of the configuration file.
@@ -519,6 +747,7 @@ faulty configuration. They will just not be part of the metric output.
 Any access failures to apic[s] are written to the log.
 
 # Installation
+Get the latest release from the [release page](https://github.com/opsdis/aci-exporter/releases).
 
 ## Build
 ```shell
@@ -556,8 +785,13 @@ The target is a named fabric in the configuration file.
 There is also possible to run a limited number of queries by using the query parameter `queries`.
 This should be a comma separated list of the query names in the config file. It may also contain built-in query names.
 
+
 ```shell
 curl -s 'http://localhost:9643/probe?target=cisco_sandbox&queries=node_health,faults'
+```
+In addition to queries as a comma separated list, it is also possible to repeat `queries` as a query parameter.
+```shell
+curl -s 'http://localhost:9643/probe?target=cisco_sandbox&queries=node_health&queries=faults'
 ```
 
 ## Run in standalone query mode (beta and may change in future releases)
@@ -577,7 +811,9 @@ To get the metrics in openmetrics format use the header `Accept: application/ope
 Please see the example file prometheus/prometheus.yml.
 
 # Docker 
-The aci-export can be build and run as a docker container and it supports multi-arch.
+Pre built docker images are available on [packages](https://github.com/opsdis/aci-exporter/pkgs/container/aci-exporter).
+
+The aci-export can be build and run as a docker container, and it supports multi-arch.
 
 ```shell
 docker buildx build . -t regystry/aci-exporter:Version --platform=linux/arm64,linux/amd64 --push
@@ -594,6 +830,9 @@ Just change `ACI_EXPORTER_CONFIG` to use different configuration files.
 
 Thanks to https://github.com/RavuAlHemio/prometheus_aci_exporter for the inspiration of the configuration of queries. 
 Please check out that project especially if you like to contribute to a Python project.   
+
+Special thanks to [camrossi](https://github.com/camrossi) for his deep knowledge of Cisco ACI, all valuable ideas and 
+endless testing. 
 
 # License
 This work is licensed under the GNU GENERAL PUBLIC LICENSE Version 3.
