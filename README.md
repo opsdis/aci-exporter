@@ -594,6 +594,9 @@ This can now be used from the prometheus configuration to do the "classic" apic 
 Please review [`prometheus/prometheus_nodes.yml`](prometheus/prometheus_nodes.yml) example. With discovery there is 
 no need for any static configuration and only two job configurations to manage all aci fabrics configured.
 
+> In [`otel/prometheus_nodes.yml`](otel/prometheus_nodes.yml) there is an example of the same configuration but for the
+> OpenTelemetry Prometheus receiver.
+
 ## Configure node queries
 There is no difference how a node query is configured in the aci-exporter from apic query except:
 1. Not all queries are supported on the node
@@ -825,6 +828,14 @@ docker run -p 9643:9643 --volume <path to config files>:/etc/aci-exporter -e ACI
 ```
 Just change `ACI_EXPORTER_CONFIG` to use different configuration files. 
 > When using `config.yaml` there is no need to define `ACI_EXPORTER_CONFIG` since it's the default
+
+## User stories
+
+Are you using aci-exporter in production at scale? Add yourself here!
+
+### Contributions
+
+This project welcomes pull-requests. 
 
 # Acknowledgements
 

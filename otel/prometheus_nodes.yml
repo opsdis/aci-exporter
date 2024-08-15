@@ -1,0 +1,109 @@
+# example for aci-exporter
+receivers:
+  prometheus:
+    config:
+      scrape_configs:
+
+        # Job for APIC queries
+        - job_name: 'aci'
+          scrape_interval: 1m
+          scrape_timeout: 30s
+          metrics_path: /probe
+          params:
+            queries:
+              - health,fabric_node_info,object_count,max_capacity
+
+          http_sd_configs:
+            # discovery all fabrics
+            # To discover an individual fabric use - url: "http://localhost:9643/sd?target=<fabric>"
+            - url: "http://localhost:9643/sd"
+              refresh_interval: 5m
+
+          relabel_configs:
+            - source_labels: [ __meta_role ]
+              # Only include the aci_exporter_fabric __meta_role
+              regex: "aci_exporter_fabric"
+              action: "keep"
+
+            - source_labels: [ __address__ ]
+              target_label: __param_target
+            - source_labels: [ __param_target ]
+              target_label: instance
+            - target_label: __address__
+              replacement: 127.0.0.1:9643
+
+        # Job for ACI nodes based on discovery
+        - job_name: 'aci_nodes'
+          scrape_interval: 1m
+          scrape_timeout: 30s
+          metrics_path: /probe
+          params:
+            # OBS make sure to specify queries that only works for nodes AND have correct label regex for node based response
+            queries:
+              - interface_info
+              - interface_rx_stats
+              - interface_tx_stats
+              - interface_rx_err_stats
+              - interface_tx_err_stats
+
+          http_sd_configs:
+            # discovery all fabrics
+            # To discover an individual fabric use - url: "http://localhost:9643/sd?target=<fabric>"
+            - url: "http://localhost:9643/sd"
+              refresh_interval: 5m
+
+          relabel_configs:
+            - source_labels: [ __meta_role ]
+              # Only include the spine and leaf __meta_role
+              regex: "(spine|leaf)"
+              action: "keep"
+
+            # Get the target param from __address__ that is <fabric>#<oobMgmtAddr> by default
+            - source_labels: [ __address__ ]
+              separator: "#"
+              regex: (.*)#(.*)
+              replacement: $$1
+              target_label: __param_target
+
+            # Get the node param from __address__ that is <fabric>#<oobMgmtAddr> by default
+            - source_labels: [ __address__ ]
+              separator: "#"
+              regex: (.*)#(.*)
+              replacement: $$2
+              target_label: __param_node
+
+            # Set instance to the ip/hostname from the __param_node
+            - source_labels: [ __param_node ]
+              target_label: instance
+
+            # Add labels from discovery
+            - source_labels: [ __meta_fabricDomain ]
+              target_label: aci
+            - source_labels: [ __meta_id ]
+              target_label: nodeid
+            - source_labels: [ __meta_podId ]
+              target_label: podid
+            - source_labels: [ __meta_role ]
+              target_label: role
+            - source_labels: [ __meta_name ]
+              target_label: name
+
+            - target_label: __address__
+              replacement: 127.0.0.1:9643
+
+processors:
+  batch:
+    timeout: 10s
+
+exporters:
+  otlphttp:
+    endpoint: https://otlp-gateway
+
+service:
+  pipelines:
+    metrics:
+      receivers:
+        - prometheus
+      processors:
+        - batch
+      exporters: [otlphttp]
