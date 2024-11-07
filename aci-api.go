@@ -140,6 +140,11 @@ func (p aciAPI) CollectMetrics() (string, []MetricDefinition, error) {
 		metrics = append(metrics, <-ch...)
 	}
 
+	if metrics == nil {
+		metrics = append(metrics, *p.up(0.0))
+		return "", metrics, errors.New("failed to get all metrics")
+	}
+
 	end := time.Since(start)
 	metrics = append(metrics, *p.scrape(end.Seconds()))
 	metrics = append(metrics, *p.up(1.0))
