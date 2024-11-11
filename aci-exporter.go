@@ -28,6 +28,7 @@ import (
 
 	"net/http"
 
+	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -77,6 +78,7 @@ func isFlagPassed(name string) bool {
 }
 
 var version = "undefined"
+var querySet = mapset.NewSet[string]()
 
 func main() {
 
@@ -248,6 +250,9 @@ func main() {
 		GroupClassQueries:    queries.GroupClassQueries,
 	}
 
+	// Create a set of all query names - used to validate the query parameter
+	createQueryNameSet(allQueries)
+
 	// Init all fabrics
 	allFabrics := make(map[string]*Fabric)
 
@@ -339,6 +344,19 @@ func main() {
 		"write_timeout": viper.GetDuration("httpserver.write_timeout") * time.Second,
 	}).Info("aci-exporter starting")
 	log.Fatal(s.ListenAndServe())
+}
+
+func createQueryNameSet(allQueries AllQueries) {
+	for queryName, _ := range allQueries.ClassQueries {
+		querySet.Add(queryName)
+	}
+	for queryName, _ := range allQueries.CompoundClassQueries {
+		querySet.Add(queryName)
+	}
+	for queryName, _ := range allQueries.GroupClassQueries {
+		querySet.Add(queryName)
+	}
+	querySet.Add("faults")
 }
 
 func readConfigDirectory(configDirName *string, dirPath string, queries *AllQueries) {
@@ -530,6 +548,18 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 		// If the queries query parameter include a comma, split it and add to the queries array
 		querySplit := strings.Split(queryString, ",")
 		for _, query := range querySplit {
+			// Validate that the query is a valid query
+			if !querySet.Contains(query) {
+				w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+				w.Header().Set("Content-Length", "0")
+				log.WithFields(log.Fields{
+					LogFieldFabric: fabric,
+					"query":        query,
+				}).Warning("not a valid query")
+				lrw := loggingResponseWriter{ResponseWriter: w}
+				lrw.WriteHeader(400)
+				return
+			}
 			queries = append(queries, strings.TrimSpace(query))
 		}
 	}
