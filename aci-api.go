@@ -141,8 +141,15 @@ func (p aciAPI) CollectMetrics() (string, []MetricDefinition, error) {
 	}
 
 	end := time.Since(start)
+
+	if metrics == nil {
+		// if no metrics are returned the apic or node may be down
+		metrics = append(metrics, *p.up(0.0))
+	} else {
+		metrics = append(metrics, *p.up(1.0))
+	}
+
 	metrics = append(metrics, *p.scrape(end.Seconds()))
-	metrics = append(metrics, *p.up(1.0))
 	log.WithFields(log.Fields{
 		LogFieldRequestID: p.ctx.Value(LogFieldRequestID),
 		LogFieldExecTime:  end.Microseconds(),

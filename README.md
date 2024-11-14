@@ -449,7 +449,7 @@ to scrape.
 
 ## Service discovery
 The service discovery is exposed on the `/sd` endpoint where the query parameter `target` is the name of fabric in the
-`config.yml` file, e.g. `'http://localhost:9643/sd?fabric=xyz'`. The output can look like this:
+`config.yml` file, e.g. `'http://localhost:9643/sd?target=xyz'`. The output can look like this:
 
 ```json
     ....
