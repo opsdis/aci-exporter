@@ -4,6 +4,7 @@ go 1.20
 
 require (
 	github.com/Knetic/govaluate v3.0.0+incompatible
+	github.com/deckarep/golang-set/v2 v2.6.0
 	github.com/prometheus/client_golang v1.11.1
 	github.com/segmentio/ksuid v1.0.3
 	github.com/sirupsen/logrus v1.6.0
@@ -16,7 +17,6 @@ require (
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
-	github.com/deckarep/golang-set/v2 v2.6.0 // indirect
 	github.com/fsnotify/fsnotify v1.4.7 // indirect
 	github.com/golang/protobuf v1.5.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
