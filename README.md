@@ -3,7 +3,7 @@ aci-exporter - A Cisco ACI Prometheus exporter
 [![published](https://static.production.devnetcloud.com/codeexchange/assets/images/devnet-published.svg)](https://developer.cisco.com/codeexchange/github/repo/opsdis/aci-exporter)
 
 # Overview
-The aci-exporter provide metrics from a Cisco ACI fabric by using the ACI Rest API against ACPI controller(s).
+The aci-exporter provide metrics from a Cisco ACI fabric by using the ACI Rest API against APIC controller(s).
 The exporter also have the capability to directly scrape individual splines and leafs using the aci-exporter inbuilt 
 http based service discovery. Doing direct spine and leaf queries is typical useful in very large fabrics, where doing all 
 api calls through the apic can put a high load on the apic and result in high response time.
