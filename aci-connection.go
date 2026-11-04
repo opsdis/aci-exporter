@@ -74,6 +74,7 @@ type AciConnection struct {
 }
 
 var connectionCache = make(map[string]*AciConnection)
+var connectionCacheMutex sync.Mutex
 
 // cacheName returns a unique name for the connection. Every connection is unique per fabric and node with own
 // cache entry
@@ -85,6 +86,9 @@ func cacheName(aciName string, node *string) string {
 }
 
 func newAciConnection(fabricConfig *Fabric, node *string) *AciConnection {
+	connectionCacheMutex.Lock()
+	defer connectionCacheMutex.Unlock()
+
 	// Check if we have a connection in the cache
 	val, ok := connectionCache[cacheName(fabricConfig.FabricName, node)]
 	if ok {
