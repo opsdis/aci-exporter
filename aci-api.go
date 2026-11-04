@@ -17,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/umisama/go-regexpcache"
@@ -707,6 +708,9 @@ func (p aciAPI) toFloatTransform(value string, mv ConfigMetric) (float64, error)
 	if len(mv.ValueTransform) != 0 && len(allValues) != 0 {
 		for index, valueEntry := range allValues {
 			if val, ok := mv.ValueTransform[valueEntry]; ok {
+				allValues[index] = fmt.Sprintf("%f", val)
+			} else if val, ok := mv.ValueTransform[strings.ToLower(valueEntry)]; ok {
+				// viper >= 1.13 lower cases map keys read from the main config file
 				allValues[index] = fmt.Sprintf("%f", val)
 			}
 		}
