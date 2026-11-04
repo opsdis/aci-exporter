@@ -590,6 +590,28 @@ func (h HandlerInit) getMonitorMetrics(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 	ctx = context.WithValue(ctx, LogFieldFabric, fabric)
+
+	// Only allow nodes that belong to the fabric, credentials must not be sent to other hosts
+	if node != nil {
+		nodeURL, host, err := normalizeNode(*node)
+		known := false
+		if err == nil {
+			known, err = isKnownNode(ctx, h.AllFabrics[fabric], host)
+		}
+		if err != nil || !known {
+			log.WithFields(log.Fields{
+				LogFieldRequestID: ctx.Value(LogFieldRequestID),
+				LogFieldFabric:    fabric,
+				"node":            *node,
+				"error":           err,
+			}).Warning("node is not a known node of the fabric")
+			lrw := loggingResponseWriter{ResponseWriter: w}
+			lrw.WriteHeader(403)
+			return
+		}
+		node = &nodeURL
+	}
+
 	api := newAciAPI(ctx, h.AllFabrics[fabric], h.AllQueries, queries, node)
 
 	start := time.Now()
