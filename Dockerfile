@@ -1,4 +1,4 @@
-FROM golang:alpine as builder
+FROM golang:1.27-alpine3.24 AS builder
 
 # Set necessary environmet variables needed for our image
 ENV GO111MODULE=on \
@@ -20,7 +20,7 @@ COPY . .
 RUN go build -o aci-exporter  *.go
 
 
-FROM alpine
+FROM alpine:3.24
 
 # Move to /dist directory as the place for resulting binary folder
 WORKDIR /dist
@@ -30,6 +30,9 @@ COPY --from=builder /build/aci-exporter .
 
 # Export necessary port
 EXPOSE 9643
+
+# Run as non-root (nobody)
+USER 65534:65534
 
 # Command to run when starting the container
 CMD ["/dist/aci-exporter"]
