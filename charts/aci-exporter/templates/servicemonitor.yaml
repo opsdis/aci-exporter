@@ -1,0 +1,38 @@
+{{- if .Values.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "aci-exporter.fullname" . }}
+  labels:
+    {{- include "aci-exporter.labels" . | nindent 4 }}
+    {{- with .Values.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "aci-exporter.selectorLabels" . | nindent 6 }}
+  endpoints:
+    {{- if .Values.serviceMonitor.selfMetrics }}
+    - port: http
+      path: /metrics
+      interval: {{ .Values.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.serviceMonitor.scrapeTimeout }}
+    {{- end }}
+    {{- range .Values.serviceMonitor.targets }}
+    - port: http
+      path: /probe
+      interval: {{ .interval | default $.Values.serviceMonitor.interval }}
+      scrapeTimeout: {{ .scrapeTimeout | default $.Values.serviceMonitor.scrapeTimeout }}
+      params:
+        target:
+          - {{ required "serviceMonitor.targets[].fabric is required" .fabric | quote }}
+        {{- with .queries }}
+        queries:
+          - {{ . | quote }}
+        {{- end }}
+      relabelings:
+        - targetLabel: instance
+          replacement: {{ .fabric | quote }}
+    {{- end }}
+{{- end }}
