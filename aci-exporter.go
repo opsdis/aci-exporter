@@ -186,6 +186,10 @@ func main() {
 		os.Exit(1)
 	}
 
+	if data, err := os.ReadFile(viper.ConfigFileUsed()); err == nil {
+		warnUnknownConfigKeys(viper.ConfigFileUsed(), data, true)
+	}
+
 	// Check if the arguments for loglevel, logfile and logformat is set on command line
 	// if not use the values from the config file if exists or defaults
 	if !isFlagPassed("loglevel") {
@@ -380,6 +384,7 @@ func readConfigDirectory(configDirName *string, dirPath string, queries *AllQuer
 			log.Error(fmt.Sprintf("Reading the config file %s failed - ", file.Name()), err)
 			os.Exit(1)
 		}
+		warnUnknownConfigKeys(file.Name(), yamlFile, false)
 		err = yaml.Unmarshal(yamlFile, &queries)
 		if err != nil {
 			log.Error(fmt.Sprintf("Unmarshal the config file %s failed - ", file.Name()), err)
