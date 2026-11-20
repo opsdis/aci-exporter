@@ -50,6 +50,9 @@ type MetricFormat struct {
 	lowerCase   bool
 }
 
+// labelValueEscaper escapes label values according to the Prometheus text exposition format
+var labelValueEscaper = strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", `\n`)
+
 var matchFirstCap = regexp.MustCompile("(.)([A-Z][a-z]+)")
 var matchAllCap = regexp.MustCompile("([a-z0-9])([A-Z])")
 
@@ -90,7 +93,7 @@ func (m Metric) Labels2Prometheus(commonLabels map[string]string, format MetricF
 	for _, k := range keys {
 		// Filter out empty labels
 		if m.Labels[k] != "" {
-			addText(&builder, fmt.Sprintf("%s%s=\"%s\"", sep, toLowerLabels(k, format), m.Labels[k]))
+			addText(&builder, fmt.Sprintf("%s%s=\"%s\"", sep, toLowerLabels(k, format), labelValueEscaper.Replace(m.Labels[k])))
 			sep = ","
 		}
 	}
