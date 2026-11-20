@@ -18,3 +18,4 @@ build/
 .idea/
 config*.yaml
 target/
+!charts/**/configmap.yaml

@@ -1,0 +1,29 @@
+{{- if not .Values.existingConfigMap }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "aci-exporter.fullname" . }}
+  labels:
+    {{- include "aci-exporter.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    {{- toYaml .Values.config | nindent 4 }}
+{{- end }}
+{{- if .Values.queries }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "aci-exporter.fullname" . }}-queries
+  labels:
+    {{- include "aci-exporter.labels" . | nindent 4 }}
+data:
+  {{- range $name, $content := .Values.queries }}
+  {{ $name }}: |
+    {{- if kindIs "string" $content }}
+    {{- $content | nindent 4 }}
+    {{- else }}
+    {{- toYaml $content | nindent 4 }}
+    {{- end }}
+  {{- end }}
+{{- end }}
