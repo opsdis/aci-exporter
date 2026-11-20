@@ -14,6 +14,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -142,11 +143,25 @@ func (c *AciConnection) loginProcessing(ctx context.Context) error {
 	}
 }
 
+// loginPayload returns the aaaLogin request body with username and password properly JSON escaped
+func (c *AciConnection) loginPayload() []byte {
+	payload := map[string]interface{}{
+		"aaaUser": map[string]interface{}{
+			"attributes": map[string]string{
+				"name": c.fabricConfig.Username,
+				"pwd":  c.fabricConfig.Password,
+			},
+		},
+	}
+	body, _ := json.Marshal(payload)
+	return body
+}
+
 func (c *AciConnection) apicLogin(ctx context.Context) error {
 	for i, controller := range c.fabricConfig.Apic {
 
 		response, status, err := c.doPostJSON(ctx, "login", fmt.Sprintf("%s%s", controller, c.URLMap["login"]),
-			[]byte(fmt.Sprintf("{\"aaaUser\":{\"attributes\":{\"name\":\"%s\",\"pwd\":\"%s\"}}}", c.fabricConfig.Username, c.fabricConfig.Password)))
+			c.loginPayload())
 
 		if err != nil || status != 200 {
 
@@ -177,7 +192,7 @@ func (c *AciConnection) apicLogin(ctx context.Context) error {
 func (c *AciConnection) nodeLogin(ctx context.Context) error {
 	// Node query
 	response, status, err := c.doPostJSON(ctx, "login", fmt.Sprintf("%s%s", *c.Node, c.URLMap["login"]),
-		[]byte(fmt.Sprintf("{\"aaaUser\":{\"attributes\":{\"name\":\"%s\",\"pwd\":\"%s\"}}}", c.fabricConfig.Username, c.fabricConfig.Password)))
+		c.loginPayload())
 
 	if err != nil || status != 200 {
 		err = fmt.Errorf("failed to login to %s", *c.Node)
