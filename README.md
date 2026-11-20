@@ -447,6 +447,10 @@ the current nodes in the fabric including the apic's based on the `topSystems` c
 `/probe` api is used with the addition of the query parameter `node` that is set to the spine or leaf node where 
 to scrape.
 
+The `node` value must be a host (optionally prefixed with `http://` or `https://`) that the fabric's `topSystem` class
+reports as `oobMgmtAddr`, `inbMgmtAddr`, `oobMgmtAddr6`, `inbMgmtAddr6` or one of the configured discovery
+`target_fields`. Other values are rejected with 403, so the fabric credentials are never sent to an unknown host.
+
 ## Service discovery
 The service discovery is exposed on the `/sd` endpoint where the query parameter `target` is the name of fabric in the
 `config.yml` file, e.g. `'http://localhost:9643/sd?target=xyz'`. The output can look like this:
