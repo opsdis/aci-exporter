@@ -1,0 +1,26 @@
+config:
+  fabrics:
+    my-fabric:
+      apic: [https://apic1.example.com]
+credentials:
+  fabrics:
+    my-fabric: {username: mon, password: 'p"w'}
+queries:
+  faults.yaml: |
+    class_queries:
+      faults:
+        class_name: faultInst
+  health.yaml:
+    compound_queries: {}
+serviceMonitor:
+  enabled: true
+  targets:
+    - fabric: my-fabric
+      queries: faults
+networkPolicy:
+  enabled: true
+  from:
+    - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: monitoring}}
+ingress: {enabled: true}
+extraVolumes: [{name: ca, configMap: {name: ca-certs}}]
+extraVolumeMounts: [{name: ca, mountPath: /etc/ssl/certs/ca-certificates.crt, subPath: ca-bundle.crt}]

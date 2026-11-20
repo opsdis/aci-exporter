@@ -1,0 +1,44 @@
+name: Helm chart
+
+on:
+  pull_request:
+    paths:
+      - 'charts/**'
+  push:
+    branches: [ master ]
+    paths:
+      - 'charts/**'
+    tags:
+      - 'chart-v*'
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Lint
+        run: |
+          helm lint charts/aci-exporter --strict
+          helm lint charts/aci-exporter --strict -f charts/aci-exporter/ci/test-values.yaml
+          helm template t charts/aci-exporter -f charts/aci-exporter/ci/test-values.yaml > /dev/null
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/chart-v')
+    needs: lint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check tag matches chart version
+        run: |
+          version=$(awk '/^version:/ {print $2}' charts/aci-exporter/Chart.yaml)
+          test "chart-v${version}" = "${GITHUB_REF_NAME}"
+      - name: Package and push
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+          helm package charts/aci-exporter
+          helm push aci-exporter-*.tgz "oci://ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/charts"

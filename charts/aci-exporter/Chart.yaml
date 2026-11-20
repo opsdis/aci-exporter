@@ -1,0 +1,14 @@
+apiVersion: v2
+name: aci-exporter
+description: Prometheus exporter for Cisco ACI
+type: application
+version: 0.1.0
+appVersion: "v0.8.1"
+home: https://github.com/opsdis/aci-exporter
+sources:
+  - https://github.com/opsdis/aci-exporter
+keywords:
+  - prometheus
+  - exporter
+  - cisco
+  - aci
